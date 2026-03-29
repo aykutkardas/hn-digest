@@ -27,9 +27,16 @@
               textMuted: "#a1a1aa",
               hn: "#ff6600",
             },
-            animation: { "fade-in": "fadeIn 0.3s ease-out forwards" },
+            animation: {
+              "fade-in": "fadeIn 0.3s ease-out forwards",
+              "reader-in": "readerIn 0.35s ease-out forwards",
+            },
             keyframes: {
               fadeIn: { "0%": { opacity: "0" }, "100%": { opacity: "1" } },
+              readerIn: {
+                "0%": { opacity: "0", transform: "translateY(6px)" },
+                "100%": { opacity: "1", transform: "translateY(0)" },
+              },
             },
           },
         },
@@ -123,18 +130,34 @@
       .story-card {
         transition: all 0.2s ease-in-out;
       }
-      .is-read {
-        background-color: rgba(255, 102, 0, 0.03);
-        border-color: rgba(255, 102, 0, 0.1);
-        opacity: 0.75;
-      }
-      .is-read:hover {
+      /* Angular-style ~33.7° hatch: repeated “trace” bands, lighter than solid orange wash */
+      .story-card.is-read {
         opacity: 1;
-        background-color: rgba(255, 102, 0, 0.06);
+        background-color: rgba(24, 24, 27, 0.92);
+        border-color: rgba(212, 212, 216, 0.11);
+        background-image: repeating-linear-gradient(
+          -33.7deg,
+          rgba(255, 102, 0, 0.038) 0,
+          rgba(255, 102, 0, 0.038) 3.5px,
+          transparent 3.5px,
+          transparent 15px
+        );
+      }
+      .story-card.is-read:hover {
+        border-color: rgba(228, 228, 231, 0.16);
+        background-color: rgba(28, 28, 31, 0.96);
+        background-image: repeating-linear-gradient(
+          -33.7deg,
+          rgba(255, 102, 0, 0.055) 0,
+          rgba(255, 102, 0, 0.055) 3.5px,
+          transparent 3.5px,
+          transparent 15px
+        );
       }
       .is-active {
         background-color: #27272a !important;
         border-color: #3f3f46 !important;
+        background-image: none !important;
         opacity: 1 !important;
       }
       body.hide-read-active .story-card.is-read {
@@ -157,6 +180,31 @@
       dialog::backdrop {
         background: rgba(0, 0, 0, 0.75);
         backdrop-filter: blur(8px);
+      }
+
+      @keyframes ui-shimmer {
+        100% {
+          transform: translateX(100%);
+        }
+      }
+      .ui-skeleton {
+        position: relative;
+        overflow: hidden;
+        background: rgba(39, 39, 42, 0.9);
+        border-radius: 0.375rem;
+      }
+      .ui-skeleton::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        transform: translateX(-100%);
+        background: linear-gradient(
+          90deg,
+          transparent,
+          rgba(228, 228, 231, 0.07),
+          transparent
+        );
+        animation: ui-shimmer 1.15s ease-in-out infinite;
       }
 
       #commentsBody.hn-thread-root {
@@ -322,7 +370,7 @@
               <div class="w-2 h-2 rounded-full bg-hn"></div>
             </div>
             <h1 class="text-sm font-semibold tracking-tight text-textMain">
-              hn.digest
+              HN Digest
             </h1>
           </div>
 
@@ -402,7 +450,9 @@
               >0 Total</span
             >
           </div>
-          <div class="overflow-x-hidden flex justify-end">
+          <div
+            class="overflow-x-hidden flex justify-start bg-neutral-900/50 p-1"
+          >
             <div id="activityGraph" class="activity-grid"></div>
           </div>
         </div>
@@ -435,7 +485,8 @@
       >
         <button
           id="loadMoreBtn"
-          class="hidden w-full bg-surface border border-borderSubtle text-textMuted hover:text-hn hover:border-hn/50 px-4 py-2.5 rounded-lg text-xs font-medium transition-all duration-300 disabled:opacity-50 shadow-sm"
+          type="button"
+          class="hidden w-full bg-surface border border-borderSubtle text-textMuted hover:text-hn hover:border-hn/50 px-4 py-2.5 rounded-lg text-xs font-medium transition-all duration-300 disabled:opacity-60 shadow-sm inline-flex items-center justify-center gap-2"
         >
           Load More
         </button>
@@ -478,10 +529,7 @@
         aria-hidden="true"
       ></div>
 
-      <div
-        id="readerWorkspace"
-        class="hidden flex-1 min-h-0 min-w-0 flex-col"
-      >
+      <div id="readerWorkspace" class="hidden flex-1 min-h-0 min-w-0 flex-col">
         <div
           id="readerSplit"
           class="flex flex-1 min-h-0 min-w-0 flex-col md:flex-row"
@@ -522,7 +570,7 @@
                 <div class="w-full max-w-2xl text-left">
                   <h2
                     id="readerTitle"
-                    class="text-lg sm:text-xl md:text-2xl font-medium tracking-tight text-textMain leading-snug selection:bg-hn selection:text-white"
+                    class="text-base sm:text-lg md:text-xl font-medium tracking-tight text-textMain leading-snug selection:bg-hn selection:text-white"
                   ></h2>
 
                   <div
@@ -530,9 +578,9 @@
                   >
                     <div
                       id="readerStatus"
-                      class="inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-[11px] font-mono border border-borderSubtle bg-appBg text-textMuted uppercase tracking-wider shadow-sm"
+                      class="inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-[11px] font-mono border border-borderSubtle bg-appBg text-textMuted shadow-sm"
                     >
-                      Loading...
+                      Loading…
                     </div>
                     <a
                       id="readerLink"
@@ -559,7 +607,7 @@
             >
               <div
                 id="readerBody"
-                class="prose prose-invert w-full max-w-2xl mx-auto selection:bg-hn selection:text-white"
+                class="prose prose-invert w-full max-w-2xl mx-auto mt-8 md:mt-10 selection:bg-hn selection:text-white transition-opacity duration-200 ease-out"
               ></div>
             </div>
           </div>
@@ -723,8 +771,64 @@
       const commentsBody = document.getElementById("commentsBody");
       const commentsBackdrop = document.getElementById("commentsBackdrop");
       const closeCommentsBtn = document.getElementById("closeCommentsBtn");
-      const commentsExternalLink = document.getElementById("commentsExternalLink");
+      const commentsExternalLink = document.getElementById(
+        "commentsExternalLink"
+      );
       const mobileBackBtn = document.getElementById("mobileBackBtn");
+      const statusTextEl = document.getElementById("statusText");
+
+      const SPINNER_SVG = `<svg class="animate-spin h-3.5 w-3.5 text-hn shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true"><circle class="opacity-20" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-80" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>`;
+
+      function createFeedSkeletonCard() {
+        const el = document.createElement("div");
+        el.setAttribute("data-feed-skeleton", "1");
+        el.className =
+          "story-card bg-surface border border-borderSubtle p-4 rounded-xl shadow-sm flex flex-col justify-between";
+        el.innerHTML = `
+          <div class="mb-3 space-y-2.5">
+            <div class="ui-skeleton h-3.5 rounded-md" style="width:92%"></div>
+            <div class="ui-skeleton h-3.5 rounded-md" style="width:76%"></div>
+          </div>
+          <div class="flex items-center justify-between pt-3 border-t border-borderSubtle/50">
+            <div class="flex gap-2">
+              <div class="ui-skeleton h-5 w-16 rounded-md"></div>
+              <div class="ui-skeleton h-5 w-14 rounded-md"></div>
+            </div>
+            <div class="ui-skeleton h-3 w-28 rounded-md"></div>
+          </div>`;
+        return el;
+      }
+
+      function readerSummarySkeletonHTML() {
+        return `<div class="w-full space-y-3 animate-fade-in opacity-0" style="animation-delay:0ms">
+          <div class="ui-skeleton h-4 rounded-md" style="width:88%"></div>
+          <div class="ui-skeleton h-4 rounded-md w-full"></div>
+          <div class="ui-skeleton h-4 rounded-md" style="width:94%"></div>
+          <div class="ui-skeleton h-4 rounded-md" style="width:72%"></div>
+          <div class="ui-skeleton h-4 rounded-md w-full"></div>
+          <div class="ui-skeleton h-4 rounded-md" style="width:56%"></div>
+        </div>`;
+      }
+
+      function commentsThreadLoadingHTML() {
+        return `<div class="hn-thread-loading px-3 py-4 space-y-4">
+          <div class="flex items-center gap-2.5 text-xs font-mono text-textMuted">
+            ${SPINNER_SVG}
+            <span>Fetching thread…</span>
+          </div>
+          <div class="space-y-2.5">
+            ${[1, 2, 3]
+              .map(
+                () => `<div class="rounded-lg border border-borderSubtle bg-surface/40 p-3 space-y-2">
+              <div class="flex gap-2"><div class="ui-skeleton h-3 w-24 rounded"></div><div class="ui-skeleton h-3 w-12 rounded"></div></div>
+              <div class="ui-skeleton h-3 rounded w-full"></div>
+              <div class="ui-skeleton h-3 rounded" style="width:85%"></div>
+            </div>`
+              )
+              .join("")}
+          </div>
+        </div>`;
+      }
 
       let currentPage = 1;
       let hideReadActive = false;
@@ -843,30 +947,51 @@
         markAsRead(story.id);
       }
 
-      function closeCommentsPanel() {
-        commentsPane.classList.add("hidden");
-        commentsPane.classList.remove("flex");
-        commentsBackdrop.classList.add("hidden");
+      const COMMENTS_OPEN_PREF_KEY = "hn_digest_comments_open_v1";
+
+      function getCommentsOpenPreference() {
+        return localStorage.getItem(COMMENTS_OPEN_PREF_KEY) === "1";
       }
 
-      closeCommentsBtn.addEventListener("click", closeCommentsPanel);
-      commentsBackdrop.addEventListener("click", closeCommentsPanel);
+      function setCommentsOpenPreference(open) {
+        localStorage.setItem(COMMENTS_OPEN_PREF_KEY, open ? "1" : "0");
+      }
 
-      document.addEventListener("keydown", (e) => {
-        if (e.key === "Escape" && !commentsPane.classList.contains("hidden")) {
-          closeCommentsPanel();
-        }
-      });
-
-      readerHnBtn.addEventListener("click", () => {
-        if (!currentActiveStory) return;
+      function openCommentsPanelForStory(story, persistPreference) {
+        if (!story) return;
         commentsPane.classList.remove("hidden");
         commentsPane.classList.add("flex");
         if (window.innerWidth < 768) {
           commentsBackdrop.classList.remove("hidden");
         }
-        commentsExternalLink.href = `https://news.ycombinator.com/item?id=${currentActiveStory.id}`;
-        loadHnComments(currentActiveStory.id, commentsBody);
+        commentsExternalLink.href = `https://news.ycombinator.com/item?id=${story.id}`;
+        loadHnComments(story.id, commentsBody);
+        if (persistPreference) setCommentsOpenPreference(true);
+      }
+
+      function closeCommentsPanel(persistPreference) {
+        commentsPane.classList.add("hidden");
+        commentsPane.classList.remove("flex");
+        commentsBackdrop.classList.add("hidden");
+        if (persistPreference) setCommentsOpenPreference(false);
+      }
+
+      closeCommentsBtn.addEventListener("click", () =>
+        closeCommentsPanel(true)
+      );
+      commentsBackdrop.addEventListener("click", () =>
+        closeCommentsPanel(true)
+      );
+
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && !commentsPane.classList.contains("hidden")) {
+          closeCommentsPanel(true);
+        }
+      });
+
+      readerHnBtn.addEventListener("click", () => {
+        if (!currentActiveStory) return;
+        openCommentsPanelForStory(currentActiveStory, true);
       });
 
       const HN_ITEM_CACHE_KEY = "hn_digest_hn_items_v1";
@@ -1017,8 +1142,7 @@
       }
 
       async function loadHnComments(storyId, container) {
-        container.innerHTML =
-          '<p class="px-3 py-6 text-center text-sm text-textMuted font-mono tracking-wide">Loading thread…</p>';
+        container.innerHTML = commentsThreadLoadingHTML();
         const TOP_LEVEL_BATCH = 20;
         const NESTED_KIDS_CAP = 25;
         const state = { fetched: 0 };
@@ -1050,9 +1174,9 @@
           let rootOffset = 0;
 
           async function walk(ids, depth, parentEl) {
-            if (!ids?.length || depth > 12 || state.fetched >= MAX_FETCH) return;
-            const idBatch =
-              depth === 0 ? ids : ids.slice(0, NESTED_KIDS_CAP);
+            if (!ids?.length || depth > 12 || state.fetched >= MAX_FETCH)
+              return;
+            const idBatch = depth === 0 ? ids : ids.slice(0, NESTED_KIDS_CAP);
             const items = await Promise.all(
               idBatch.map((id) => fetchHnItem(id))
             );
@@ -1083,7 +1207,7 @@
 
             if (loadMoreBtn) {
               loadMoreBtn.disabled = true;
-              loadMoreBtn.textContent = "Loading…";
+              loadMoreBtn.innerHTML = `${SPINNER_SVG}<span>Loading…</span>`;
             }
 
             let loadedInBatch = 0;
@@ -1101,14 +1225,17 @@
             const meta = document.createElement("p");
             meta.className =
               "text-[10px] font-mono text-textMuted text-center uppercase tracking-wider";
-            meta.textContent = `Top-level ${Math.min(rootOffset, allRootIds.length)} / ${allRootIds.length}`;
+            meta.textContent = `Top-level ${Math.min(
+              rootOffset,
+              allRootIds.length
+            )} / ${allRootIds.length}`;
             footer.appendChild(meta);
 
             if (remaining > 0 && state.fetched < MAX_FETCH) {
               const btn = document.createElement("button");
               btn.type = "button";
               btn.className =
-                "w-full py-2.5 px-4 rounded-lg text-xs font-medium border border-borderSubtle bg-surface text-textMuted hover:text-hn hover:border-hn/40 transition-colors disabled:opacity-50";
+                "w-full py-2.5 px-4 rounded-lg text-xs font-medium border border-borderSubtle bg-surface text-textMuted hover:text-hn hover:border-hn/40 transition-colors disabled:opacity-50 inline-flex items-center justify-center gap-2";
               btn.textContent = `Load more comments (${remaining} remaining)`;
               btn.addEventListener("click", () => appendRootBatch(btn));
               footer.appendChild(btn);
@@ -1138,7 +1265,7 @@
       }
 
       mobileBackBtn.addEventListener("click", () => {
-        closeCommentsPanel();
+        closeCommentsPanel(false);
         feedPane.classList.remove("hidden");
         readerPane.classList.add("hidden");
         readerPane.classList.replace("flex", "hidden");
@@ -1152,8 +1279,19 @@
       // 100% Client-Side Hacker News Fetching
       async function loadStoriesClient(page = 1) {
         if (page > 1) {
-          loadMoreBtn.textContent = "Loading...";
           loadMoreBtn.disabled = true;
+          loadMoreBtn.innerHTML = `${SPINNER_SVG}<span>Loading…</span>`;
+          for (let i = 0; i < 3; i++) {
+            feedList.appendChild(createFeedSkeletonCard());
+          }
+        } else {
+          feedList.innerHTML = "";
+          for (let i = 0; i < 8; i++) {
+            feedList.appendChild(createFeedSkeletonCard());
+          }
+          statusDot.classList.remove("bg-red-500");
+          statusDot.classList.add("bg-hn", "animate-pulse");
+          statusTextEl.textContent = "Loading feed";
         }
 
         try {
@@ -1170,11 +1308,6 @@
             localStorage.setItem("hn_top_time", Date.now().toString());
           }
 
-          if (page === 1) {
-            statusDot.classList.add("bg-hn");
-            statusDot.classList.remove("animate-pulse");
-          }
-
           const limit = 15;
           const pageIds = topIds.slice((page - 1) * limit, page * limit);
 
@@ -1185,6 +1318,14 @@
             )
           );
           const stories = await Promise.all(storyPromises);
+
+          if (page === 1) {
+            feedList.innerHTML = "";
+          } else {
+            feedList
+              .querySelectorAll("[data-feed-skeleton]")
+              .forEach((el) => el.remove());
+          }
 
           stories.forEach((story, i) => {
             if (!story) return;
@@ -1258,11 +1399,26 @@
           } else {
             loadMoreBtn.classList.add("hidden");
           }
+
+          if (page === 1) {
+            statusDot.classList.remove("animate-pulse");
+            statusTextEl.textContent = "Live";
+          }
         } catch (err) {
-          if (page === 1) statusDot.classList.replace("bg-hn", "bg-red-500");
+          if (page === 1) {
+            statusDot.classList.remove("animate-pulse");
+            statusDot.classList.replace("bg-hn", "bg-red-500");
+            statusTextEl.textContent = "Error";
+            feedList.innerHTML =
+              '<p class="text-sm text-red-400/90 px-2 py-10 text-center">Couldn’t load stories. Check your connection and try again.</p>';
+          } else {
+            feedList
+              .querySelectorAll("[data-feed-skeleton]")
+              .forEach((el) => el.remove());
+          }
         } finally {
           if (page > 1) {
-            loadMoreBtn.textContent = "Load More";
+            loadMoreBtn.innerHTML = "Load More";
             loadMoreBtn.disabled = false;
           }
         }
@@ -1290,8 +1446,13 @@
         readerContent.classList.remove("hidden");
         readerContent.classList.add("flex", "flex-col");
 
-        closeCommentsPanel();
+        if (getCommentsOpenPreference()) {
+          openCommentsPanelForStory(story, false);
+        } else {
+          closeCommentsPanel(false);
+        }
 
+        readerBody.classList.remove("animate-reader-in", "opacity-50");
         readerTitle.textContent = story.title;
         readerBody.innerHTML = "";
 
@@ -1312,14 +1473,18 @@
         const browserCachedSummary = localStorage.getItem(localCacheKey);
 
         if (browserCachedSummary) {
-          readerStatus.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-hn"></span> Loaded from browser (${currentLang.toUpperCase()})`;
+          readerStatus.innerHTML = `<span class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-hn shrink-0"></span><span class="uppercase tracking-wider">Loaded from browser (${currentLang.toUpperCase()})</span></span>`;
           readerBody.innerHTML = marked.parse(browserCachedSummary);
           applyBlankTargets(readerBody);
+          void readerBody.offsetWidth;
+          readerBody.classList.add("animate-reader-in");
           applyReadState(story, cardElement);
           return;
         }
 
-        readerStatus.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-neutral-500 animate-pulse"></span> Fetching and analyzing...`;
+        readerBody.classList.add("opacity-50");
+        readerBody.innerHTML = readerSummarySkeletonHTML();
+        readerStatus.innerHTML = `<span class="flex items-center gap-2">${SPINNER_SVG}<span class="uppercase tracking-wider">Generating summary</span></span>`;
 
         try {
           const apiKey = (localStorage.getItem("openai_api_key") || "").trim();
@@ -1335,7 +1500,9 @@
           const data = await res.json().catch(() => ({}));
           if (res.status === 401) {
             openSettingsBtn.click();
-            readerStatus.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span> Add your OpenAI API key in settings (or set OPENAI_API_KEY on the server).`;
+            readerBody.classList.remove("opacity-50");
+            readerBody.innerHTML = "";
+            readerStatus.innerHTML = `<span class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0"></span><span class="uppercase tracking-wider text-[10px] leading-snug">Add API key in settings</span></span>`;
             return;
           }
           if (!res.ok) {
@@ -1348,9 +1515,12 @@
             ? `Server cache (${currentLang.toUpperCase()})`
             : `Generated (${currentLang.toUpperCase()})`;
           const dotClass = data.cached ? "bg-hn" : "bg-green-500";
-          readerStatus.innerHTML = `<span class="w-1.5 h-1.5 rounded-full ${dotClass}"></span> ${statusLabel}`;
+          readerStatus.innerHTML = `<span class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full ${dotClass} shrink-0"></span><span class="uppercase tracking-wider">${statusLabel}</span></span>`;
+          readerBody.classList.remove("opacity-50");
           readerBody.innerHTML = marked.parse(summary);
           applyBlankTargets(readerBody);
+          void readerBody.offsetWidth;
+          readerBody.classList.add("animate-reader-in");
 
           try {
             localStorage.setItem(localCacheKey, summary);
@@ -1361,7 +1531,9 @@
           applyReadState(story, cardElement);
         } catch (err) {
           console.error(err);
-          readerStatus.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-red-500"></span> Summary failed — open settings and check your API key (or server OPENAI_API_KEY).`;
+          readerBody.classList.remove("opacity-50");
+          readerBody.innerHTML = "";
+          readerStatus.innerHTML = `<span class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0"></span><span class="uppercase tracking-wider text-[10px] leading-snug">Summary failed — check API key</span></span>`;
         }
       }
 
