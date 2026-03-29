@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>HN Daily Digest</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
 
     <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -156,6 +157,150 @@
       dialog::backdrop {
         background: rgba(0, 0, 0, 0.75);
         backdrop-filter: blur(8px);
+      }
+
+      #commentsBody.hn-thread-root {
+        padding: 0.75rem 0.875rem 1.25rem;
+        background: linear-gradient(180deg, #0c0c0e 0%, #09090b 120px);
+      }
+
+      .hn-comment-block {
+        margin-bottom: 0.625rem;
+      }
+      .hn-comment-block[data-depth="0"] {
+        margin-bottom: 1rem;
+      }
+
+      .hn-comment-card {
+        display: flex;
+        align-items: stretch;
+        border-radius: 0.625rem;
+        border: 1px solid #27272a;
+        background: #141416;
+        overflow: hidden;
+        transition: border-color 0.15s ease, box-shadow 0.15s ease,
+          background 0.15s ease;
+      }
+      .hn-comment-card:hover {
+        border-color: #3f3f46;
+        background: #18181b;
+        box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset;
+      }
+
+      .hn-comment-rail {
+        width: 5px;
+        flex-shrink: 0;
+        background: #52525b;
+      }
+      .hn-comment-block[data-rail="0"] .hn-comment-rail {
+        background: linear-gradient(180deg, #ff8533, #ff6600);
+      }
+      .hn-comment-block[data-rail="1"] .hn-comment-rail {
+        background: linear-gradient(180deg, #a78bfa, #7c3aed);
+      }
+      .hn-comment-block[data-rail="2"] .hn-comment-rail {
+        background: linear-gradient(180deg, #5eead4, #14b8a6);
+      }
+      .hn-comment-block[data-rail="3"] .hn-comment-rail {
+        background: linear-gradient(180deg, #7dd3fc, #0ea5e9);
+      }
+      .hn-comment-block[data-rail="4"] .hn-comment-rail {
+        background: linear-gradient(180deg, #fcd34d, #d97706);
+      }
+
+      .hn-comment-inner {
+        flex: 1;
+        min-width: 0;
+        padding: 0.7rem 0.85rem 0.85rem;
+      }
+
+      .hn-comment-meta {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.35rem 0.65rem;
+        margin-bottom: 0.55rem;
+        padding-bottom: 0.45rem;
+        border-bottom: 1px solid rgba(39, 39, 42, 0.85);
+      }
+      .hn-comment-author {
+        font-size: 0.8125rem;
+        font-weight: 600;
+        color: #f4f4f5;
+        letter-spacing: -0.01em;
+      }
+      .hn-comment-time {
+        font-size: 0.625rem;
+        font-family: "Geist Mono", ui-monospace, monospace;
+        color: #71717a;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+      }
+      .hn-comment-depth {
+        font-size: 0.5625rem;
+        font-family: "Geist Mono", ui-monospace, monospace;
+        color: #52525b;
+        padding: 0.15rem 0.4rem;
+        border-radius: 0.25rem;
+        background: rgba(39, 39, 42, 0.9);
+        border: 1px solid #27272a;
+      }
+
+      .hn-comment-body {
+        font-size: 0.8125rem;
+        line-height: 1.65;
+        color: #c4c4cc;
+      }
+      .hn-comment-body a {
+        color: #ff8533;
+        text-decoration: underline;
+        text-underline-offset: 2px;
+      }
+      .hn-comment-body a:hover {
+        color: #ff6600;
+      }
+      .hn-comment-body p {
+        margin-bottom: 0.55rem;
+      }
+      .hn-comment-body p:last-child {
+        margin-bottom: 0;
+      }
+      .hn-comment-body pre,
+      .hn-comment-body code {
+        font-family: "Geist Mono", ui-monospace, monospace;
+        font-size: 0.75rem;
+      }
+      .hn-comment-body pre {
+        overflow-x: auto;
+        margin: 0.5rem 0;
+        padding: 0.5rem 0.65rem;
+        border-radius: 0.375rem;
+        background: #09090b;
+        border: 1px solid #27272a;
+      }
+
+      .hn-replies {
+        margin-top: 0.45rem;
+        margin-left: 0.35rem;
+        padding-left: 0.75rem;
+        border-left: 2px solid rgba(63, 63, 70, 0.55);
+      }
+      .hn-comment-block[data-depth="0"] > .hn-replies {
+        margin-left: 0.15rem;
+        padding-left: 0.85rem;
+        border-left-color: rgba(255, 102, 0, 0.22);
+      }
+
+      .hn-thread-note {
+        margin-top: 1rem;
+        padding: 0.75rem 0.85rem;
+        border-radius: 0.5rem;
+        border: 1px solid #27272a;
+        background: rgba(255, 102, 0, 0.06);
+        font-size: 0.6875rem;
+        font-family: "Geist Mono", ui-monospace, monospace;
+        color: #a1a1aa;
+        line-height: 1.5;
       }
     </style>
   </head>
@@ -328,70 +473,131 @@
       </div>
 
       <div
-        id="readerContent"
-        class="hidden h-full flex-col overflow-y-auto w-full relative"
+        id="commentsBackdrop"
+        class="hidden fixed inset-0 z-30 bg-black/60 backdrop-blur-[2px] md:!hidden"
+        aria-hidden="true"
+      ></div>
+
+      <div
+        id="readerWorkspace"
+        class="hidden flex-1 min-h-0 min-w-0 flex-col"
       >
         <div
-          class="sticky top-0 z-20 bg-surface/95 backdrop-blur-xl border-b border-borderSubtle shadow-sm flex flex-col shrink-0"
+          id="readerSplit"
+          class="flex flex-1 min-h-0 min-w-0 flex-col md:flex-row"
         >
-          <div class="md:hidden p-4 border-b border-borderSubtle">
-            <button
-              id="mobileBackBtn"
-              class="text-sm text-textMuted hover:text-textMain flex items-center gap-2"
+          <div
+            id="readerContent"
+            class="hidden flex-1 min-w-0 min-h-0 flex-col overflow-y-auto w-full relative"
+          >
+            <div
+              class="sticky top-0 z-20 bg-surface/95 backdrop-blur-xl border-b border-borderSubtle shadow-sm flex flex-col shrink-0"
             >
-              <svg
-                class="w-4 h-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M15 19l-7-7 7-7"
-                ></path>
-              </svg>
-              Back to Feed
-            </button>
-          </div>
-
-          <div class="p-8 md:p-12 lg:px-20">
-            <h2
-              id="readerTitle"
-              class="text-2xl md:text-3xl font-medium tracking-tight text-textMain leading-snug selection:bg-hn selection:text-white"
-            ></h2>
-
-            <div class="flex flex-wrap items-center gap-4 mt-6">
-              <div
-                id="readerStatus"
-                class="inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-[11px] font-mono border border-borderSubtle bg-appBg text-textMuted uppercase tracking-wider shadow-sm"
-              >
-                Loading...
+              <div class="md:hidden p-4 border-b border-borderSubtle">
+                <button
+                  id="mobileBackBtn"
+                  type="button"
+                  class="text-sm text-textMuted hover:text-textMain flex items-center gap-2"
+                >
+                  <svg
+                    class="w-4 h-4"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M15 19l-7-7 7-7"
+                    ></path>
+                  </svg>
+                  Back to Feed
+                </button>
               </div>
-              <a
-                id="readerLink"
-                href="#"
-                target="_blank"
-                class="text-[13px] text-textMuted hover:text-hn underline underline-offset-4 hidden transition-colors font-medium"
-                >Read Source ↗</a
+
+              <div
+                class="px-6 py-8 md:py-10 md:px-10 lg:px-16 flex flex-col items-center"
               >
-              <a
-                id="readerHnLink"
-                href="#"
-                target="_blank"
-                class="text-[13px] text-textMuted hover:text-hn underline underline-offset-4 hidden transition-colors font-medium"
-                >HN Comments ↗</a
-              >
+                <div class="w-full max-w-2xl text-left">
+                  <h2
+                    id="readerTitle"
+                    class="text-lg sm:text-xl md:text-2xl font-medium tracking-tight text-textMain leading-snug selection:bg-hn selection:text-white"
+                  ></h2>
+
+                  <div
+                    class="flex flex-wrap items-center justify-start gap-3 md:gap-4 mt-5"
+                  >
+                    <div
+                      id="readerStatus"
+                      class="inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-[11px] font-mono border border-borderSubtle bg-appBg text-textMuted uppercase tracking-wider shadow-sm"
+                    >
+                      Loading...
+                    </div>
+                    <a
+                      id="readerLink"
+                      href="#"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="text-[13px] text-textMuted hover:text-hn underline underline-offset-4 hidden transition-colors font-medium"
+                      >Read Source ↗</a
+                    >
+                    <button
+                      id="readerHnBtn"
+                      type="button"
+                      class="text-[13px] text-textMuted hover:text-hn underline underline-offset-4 hidden transition-colors font-medium"
+                    >
+                      HN Comments
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div
+              class="px-6 md:px-10 lg:px-16 pb-28 md:pb-32 flex flex-col items-center w-full"
+            >
+              <div
+                id="readerBody"
+                class="prose prose-invert w-full max-w-2xl mx-auto selection:bg-hn selection:text-white"
+              ></div>
             </div>
           </div>
-        </div>
 
-        <div class="p-8 md:p-12 lg:px-20 pb-32">
-          <div
-            id="readerBody"
-            class="prose prose-invert w-full max-w-2xl selection:bg-hn selection:text-white"
-          ></div>
+          <aside
+            id="commentsPane"
+            class="hidden flex-col bg-appBg border-borderSubtle z-40 min-h-0 md:z-10 md:w-[min(420px,38vw)] md:max-w-[480px] md:shrink-0 md:border-l max-md:fixed max-md:inset-y-0 max-md:right-0 max-md:w-full max-md:max-w-md max-md:border-l max-md:shadow-2xl"
+          >
+            <div
+              class="shrink-0 flex items-center justify-between gap-3 px-4 py-3 border-b border-borderSubtle bg-surface/80 backdrop-blur-md"
+            >
+              <span class="text-sm font-medium text-textMain tracking-tight"
+                >Thread</span
+              >
+              <div class="flex items-center gap-2 shrink-0">
+                <a
+                  id="commentsExternalLink"
+                  href="#"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="text-[11px] font-mono text-textMuted hover:text-hn uppercase tracking-wider"
+                  >HN ↗</a
+                >
+                <button
+                  id="closeCommentsBtn"
+                  type="button"
+                  class="w-8 h-8 rounded-lg border border-borderSubtle text-textMuted hover:text-textMain hover:border-borderHover flex items-center justify-center text-lg leading-none"
+                  aria-label="Close comments"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+            <div
+              id="commentsBody"
+              class="hn-thread-root flex-1 overflow-y-auto text-textMuted"
+            ></div>
+          </aside>
         </div>
       </div>
     </main>
@@ -511,7 +717,13 @@
       const readerStatus = document.getElementById("readerStatus");
       const readerBody = document.getElementById("readerBody");
       const readerLink = document.getElementById("readerLink");
-      const readerHnLink = document.getElementById("readerHnLink");
+      const readerHnBtn = document.getElementById("readerHnBtn");
+      const readerWorkspace = document.getElementById("readerWorkspace");
+      const commentsPane = document.getElementById("commentsPane");
+      const commentsBody = document.getElementById("commentsBody");
+      const commentsBackdrop = document.getElementById("commentsBackdrop");
+      const closeCommentsBtn = document.getElementById("closeCommentsBtn");
+      const commentsExternalLink = document.getElementById("commentsExternalLink");
       const mobileBackBtn = document.getElementById("mobileBackBtn");
 
       let currentPage = 1;
@@ -631,7 +843,236 @@
         markAsRead(story.id);
       }
 
+      function closeCommentsPanel() {
+        commentsPane.classList.add("hidden");
+        commentsPane.classList.remove("flex");
+        commentsBackdrop.classList.add("hidden");
+      }
+
+      closeCommentsBtn.addEventListener("click", closeCommentsPanel);
+      commentsBackdrop.addEventListener("click", closeCommentsPanel);
+
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && !commentsPane.classList.contains("hidden")) {
+          closeCommentsPanel();
+        }
+      });
+
+      readerHnBtn.addEventListener("click", () => {
+        if (!currentActiveStory) return;
+        commentsPane.classList.remove("hidden");
+        commentsPane.classList.add("flex");
+        if (window.innerWidth < 768) {
+          commentsBackdrop.classList.remove("hidden");
+        }
+        commentsExternalLink.href = `https://news.ycombinator.com/item?id=${currentActiveStory.id}`;
+        loadHnComments(currentActiveStory.id, commentsBody);
+      });
+
+      const HN_ITEM_CACHE_KEY = "hn_digest_hn_items_v1";
+      const HN_ITEM_CACHE_MAX = 1000;
+      const HN_ITEM_CACHE_TTL_MS = 45 * 60 * 1000;
+
+      function hnItemCacheLoad() {
+        try {
+          const raw = localStorage.getItem(HN_ITEM_CACHE_KEY);
+          if (!raw) return { items: {}, order: [] };
+          const o = JSON.parse(raw);
+          if (!o || typeof o.items !== "object" || !Array.isArray(o.order)) {
+            return { items: {}, order: [] };
+          }
+          return o;
+        } catch {
+          return { items: {}, order: [] };
+        }
+      }
+
+      function hnItemCacheSave(cache) {
+        try {
+          localStorage.setItem(HN_ITEM_CACHE_KEY, JSON.stringify(cache));
+        } catch (e) {
+          console.warn("HN item cache: storage full, trimming", e);
+          const half = Math.floor(cache.order.length / 2);
+          for (let i = 0; i < half; i++) {
+            const v = cache.order.shift();
+            if (v) delete cache.items[v];
+          }
+          try {
+            localStorage.setItem(HN_ITEM_CACHE_KEY, JSON.stringify(cache));
+          } catch {
+            /* ignore */
+          }
+        }
+      }
+
+      function hnItemCacheGet(id) {
+        const sid = String(id);
+        const cache = hnItemCacheLoad();
+        const entry = cache.items[sid];
+        if (!entry) return null;
+        if (Date.now() - entry.t > HN_ITEM_CACHE_TTL_MS) {
+          delete cache.items[sid];
+          cache.order = cache.order.filter((x) => x !== sid);
+          hnItemCacheSave(cache);
+          return null;
+        }
+        return entry.data;
+      }
+
+      function hnItemCacheSet(id, data) {
+        const sid = String(id);
+        const cache = hnItemCacheLoad();
+        const existed = !!cache.items[sid];
+        cache.items[sid] = { t: Date.now(), data };
+        if (!existed) {
+          cache.order.push(sid);
+          while (cache.order.length > HN_ITEM_CACHE_MAX) {
+            const victim = cache.order.shift();
+            if (victim) delete cache.items[victim];
+          }
+        }
+        hnItemCacheSave(cache);
+      }
+
+      function applyBlankTargets(root) {
+        if (!root) return;
+        root.querySelectorAll("a[href]").forEach((a) => {
+          const href = a.getAttribute("href");
+          if (!href || href.startsWith("#")) return;
+          a.setAttribute("target", "_blank");
+          a.setAttribute("rel", "noopener noreferrer");
+        });
+      }
+
+      async function fetchHnItem(id) {
+        const cached = hnItemCacheGet(id);
+        if (cached !== null) return cached;
+        const res = await fetch(
+          `https://hacker-news.firebaseio.com/v0/item/${id}.json`
+        );
+        const data = await res.json();
+        hnItemCacheSet(id, data);
+        return data;
+      }
+
+      function hnCommentBlock(item, depth) {
+        const block = document.createElement("div");
+        block.className = "hn-comment-block";
+        block.dataset.depth = String(depth);
+        block.dataset.rail = String(depth % 5);
+
+        const article = document.createElement("article");
+        article.className = "hn-comment-card";
+
+        const rail = document.createElement("div");
+        rail.className = "hn-comment-rail";
+        rail.setAttribute("aria-hidden", "true");
+
+        const inner = document.createElement("div");
+        inner.className = "hn-comment-inner";
+
+        const meta = document.createElement("header");
+        meta.className = "hn-comment-meta w-full";
+
+        const author = document.createElement("span");
+        author.className = "hn-comment-author";
+        author.textContent = item.by || "[deleted]";
+        meta.appendChild(author);
+
+        if (item.time) {
+          const when = document.createElement("span");
+          when.className = "hn-comment-time";
+          when.textContent = timeAgo(item.time);
+          meta.appendChild(when);
+        }
+
+        if (depth > 0) {
+          const depthBadge = document.createElement("span");
+          depthBadge.className = "hn-comment-depth shrink-0 ml-auto";
+          depthBadge.textContent = `L${depth}`;
+          depthBadge.title = `Reply depth ${depth}`;
+          meta.appendChild(depthBadge);
+        }
+
+        const body = document.createElement("div");
+        body.className = "hn-comment-body";
+        body.innerHTML = item.text || (item.dead ? "[dead]" : "");
+        applyBlankTargets(body);
+
+        inner.appendChild(meta);
+        inner.appendChild(body);
+        article.appendChild(rail);
+        article.appendChild(inner);
+        block.appendChild(article);
+
+        const replies = document.createElement("div");
+        replies.className = "hn-replies";
+        block.appendChild(replies);
+
+        return { block, replies };
+      }
+
+      async function loadHnComments(storyId, container) {
+        container.innerHTML =
+          '<p class="px-3 py-6 text-center text-sm text-textMuted font-mono tracking-wide">Loading thread…</p>';
+        const state = { fetched: 0 };
+        const MAX_FETCH = 120;
+
+        try {
+          const story = await fetchHnItem(storyId);
+          if (!story) {
+            container.innerHTML =
+              '<p class="text-textMuted text-sm">Could not load story.</p>';
+            return;
+          }
+          if (!story.kids || story.kids.length === 0) {
+            container.innerHTML =
+              '<p class="text-textMuted text-sm">No comments yet.</p>';
+            return;
+          }
+
+          container.innerHTML = "";
+
+          async function walk(ids, depth, parentEl) {
+            if (!ids || depth > 12 || state.fetched >= MAX_FETCH) return;
+            const slice = ids.slice(0, 25);
+            const items = await Promise.all(slice.map((id) => fetchHnItem(id)));
+            for (const item of items) {
+              if (state.fetched >= MAX_FETCH) break;
+              if (!item || item.type !== "comment" || item.deleted) continue;
+              state.fetched++;
+              const { block, replies } = hnCommentBlock(item, depth);
+              parentEl.appendChild(block);
+              if (item.kids && item.kids.length) {
+                await walk(item.kids, depth + 1, replies);
+              }
+            }
+          }
+
+          await walk(story.kids, 0, container);
+
+          if (!container.querySelector(".hn-comment-block")) {
+            container.innerHTML =
+              '<p class="px-3 py-8 text-center text-sm text-textMuted">No comments to show.</p>';
+            return;
+          }
+
+          if (state.fetched >= MAX_FETCH) {
+            const note = document.createElement("p");
+            note.className = "hn-thread-note";
+            note.textContent =
+              "Showing part of this thread (fetch limit reached). Open on HN for the full discussion.";
+            container.appendChild(note);
+          }
+        } catch (e) {
+          console.error(e);
+          container.innerHTML =
+            '<p class="text-red-400/90 text-sm">Failed to load comments.</p>';
+        }
+      }
+
       mobileBackBtn.addEventListener("click", () => {
+        closeCommentsPanel();
         feedPane.classList.remove("hidden");
         readerPane.classList.add("hidden");
         readerPane.classList.replace("flex", "hidden");
@@ -778,8 +1219,12 @@
         }
 
         emptyState.classList.add("hidden");
+        readerWorkspace.classList.remove("hidden");
+        readerWorkspace.classList.add("flex");
         readerContent.classList.remove("hidden");
-        readerContent.classList.add("flex");
+        readerContent.classList.add("flex", "flex-col");
+
+        closeCommentsPanel();
 
         readerTitle.textContent = story.title;
         readerBody.innerHTML = "";
@@ -792,9 +1237,8 @@
           readerLink.classList.add("hidden");
         }
 
-        // HN Comments Link
-        readerHnLink.href = `https://news.ycombinator.com/item?id=${story.id}`;
-        readerHnLink.classList.remove("hidden");
+        readerHnBtn.classList.remove("hidden");
+        commentsExternalLink.href = `https://news.ycombinator.com/item?id=${story.id}`;
 
         readerContent.scrollTop = 0;
 
@@ -804,6 +1248,7 @@
         if (browserCachedSummary) {
           readerStatus.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-hn"></span> Loaded from browser (${currentLang.toUpperCase()})`;
           readerBody.innerHTML = marked.parse(browserCachedSummary);
+          applyBlankTargets(readerBody);
           applyReadState(story, cardElement);
           return;
         }
@@ -839,6 +1284,7 @@
           const dotClass = data.cached ? "bg-hn" : "bg-green-500";
           readerStatus.innerHTML = `<span class="w-1.5 h-1.5 rounded-full ${dotClass}"></span> ${statusLabel}`;
           readerBody.innerHTML = marked.parse(summary);
+          applyBlankTargets(readerBody);
 
           try {
             localStorage.setItem(localCacheKey, summary);
