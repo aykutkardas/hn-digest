@@ -1005,9 +1005,13 @@
         article.appendChild(inner);
         block.appendChild(article);
 
-        const replies = document.createElement("div");
-        replies.className = "hn-replies";
-        block.appendChild(replies);
+        let replies = null;
+        if (item.kids && item.kids.length > 0) {
+          replies = document.createElement("div");
+          replies.className = "hn-replies";
+          if (depth === 0) replies.classList.add("hn-replies--root");
+          block.appendChild(replies);
+        }
 
         return { block, replies };
       }
@@ -1015,8 +1019,10 @@
       async function loadHnComments(storyId, container) {
         container.innerHTML =
           '<p class="px-3 py-6 text-center text-sm text-textMuted font-mono tracking-wide">Loading thread…</p>';
+        const TOP_LEVEL_BATCH = 20;
+        const NESTED_KIDS_CAP = 25;
         const state = { fetched: 0 };
-        const MAX_FETCH = 120;
+        const MAX_FETCH = 500;
 
         try {
           const story = await fetchHnItem(storyId);
@@ -1032,37 +1038,97 @@
           }
 
           container.innerHTML = "";
+          const listRoot = document.createElement("div");
+          listRoot.className = "hn-comments-list";
+          const footer = document.createElement("div");
+          footer.className =
+            "hn-comments-footer flex flex-col gap-2 mt-3 px-0.5 pb-2";
+          container.appendChild(listRoot);
+          container.appendChild(footer);
+
+          const allRootIds = story.kids;
+          let rootOffset = 0;
 
           async function walk(ids, depth, parentEl) {
-            if (!ids || depth > 12 || state.fetched >= MAX_FETCH) return;
-            const slice = ids.slice(0, 25);
-            const items = await Promise.all(slice.map((id) => fetchHnItem(id)));
+            if (!ids?.length || depth > 12 || state.fetched >= MAX_FETCH) return;
+            const idBatch =
+              depth === 0 ? ids : ids.slice(0, NESTED_KIDS_CAP);
+            const items = await Promise.all(
+              idBatch.map((id) => fetchHnItem(id))
+            );
             for (const item of items) {
               if (state.fetched >= MAX_FETCH) break;
               if (!item || item.type !== "comment" || item.deleted) continue;
               state.fetched++;
               const { block, replies } = hnCommentBlock(item, depth);
               parentEl.appendChild(block);
-              if (item.kids && item.kids.length) {
+              if (replies) {
                 await walk(item.kids, depth + 1, replies);
               }
             }
           }
 
-          await walk(story.kids, 0, container);
+          function pruneEmptyReplyBuckets(root) {
+            root.querySelectorAll(".hn-replies").forEach((el) => {
+              if (!el.querySelector(".hn-comment-block")) el.remove();
+            });
+          }
 
-          if (!container.querySelector(".hn-comment-block")) {
+          async function appendRootBatch(loadMoreBtn) {
+            const nextIds = allRootIds.slice(
+              rootOffset,
+              rootOffset + TOP_LEVEL_BATCH
+            );
+            if (!nextIds.length) return;
+
+            if (loadMoreBtn) {
+              loadMoreBtn.disabled = true;
+              loadMoreBtn.textContent = "Loading…";
+            }
+
+            let loadedInBatch = 0;
+            for (const id of nextIds) {
+              if (state.fetched >= MAX_FETCH) break;
+              await walk([id], 0, listRoot);
+              loadedInBatch++;
+            }
+            rootOffset += loadedInBatch;
+            pruneEmptyReplyBuckets(container);
+
+            const remaining = allRootIds.length - rootOffset;
+            footer.innerHTML = "";
+
+            const meta = document.createElement("p");
+            meta.className =
+              "text-[10px] font-mono text-textMuted text-center uppercase tracking-wider";
+            meta.textContent = `Top-level ${Math.min(rootOffset, allRootIds.length)} / ${allRootIds.length}`;
+            footer.appendChild(meta);
+
+            if (remaining > 0 && state.fetched < MAX_FETCH) {
+              const btn = document.createElement("button");
+              btn.type = "button";
+              btn.className =
+                "w-full py-2.5 px-4 rounded-lg text-xs font-medium border border-borderSubtle bg-surface text-textMuted hover:text-hn hover:border-hn/40 transition-colors disabled:opacity-50";
+              btn.textContent = `Load more comments (${remaining} remaining)`;
+              btn.addEventListener("click", () => appendRootBatch(btn));
+              footer.appendChild(btn);
+            }
+
+            if (state.fetched >= MAX_FETCH && rootOffset < allRootIds.length) {
+              const note = document.createElement("p");
+              note.className = "hn-thread-note";
+              note.textContent =
+                "Fetch limit reached for this session. Open on HN for the full thread.";
+              footer.appendChild(note);
+            }
+          }
+
+          await appendRootBatch(null);
+
+          if (!listRoot.querySelector(".hn-comment-block")) {
             container.innerHTML =
               '<p class="px-3 py-8 text-center text-sm text-textMuted">No comments to show.</p>';
             return;
-          }
-
-          if (state.fetched >= MAX_FETCH) {
-            const note = document.createElement("p");
-            note.className = "hn-thread-note";
-            note.textContent =
-              "Showing part of this thread (fetch limit reached). Open on HN for the full discussion.";
-            container.appendChild(note);
           }
         } catch (e) {
           console.error(e);
