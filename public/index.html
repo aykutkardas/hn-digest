@@ -466,8 +466,45 @@
           </div>
         </div>
 
+        <nav
+          class="flex items-center justify-center gap-2 pt-2 mt-2 border-t border-borderSubtle"
+          aria-label="Project links"
+        >
+          <a
+            href="https://x.com/aykutkardas"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="text-[10px] font-mono text-textMuted/60 hover:text-textMuted/70 transition-colors"
+            >X</a
+          >
+          <span
+            class="text-textMuted/40 text-[20px] leading-none select-none"
+            aria-hidden="true"
+            >·</span
+          >
+          <a
+            href="https://github.com/aykutkardas/hn-digest"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="text-[10px] font-mono text-textMuted/60 hover:text-textMuted/70 transition-colors"
+            >GitHub</a
+          >
+          <span
+            class="text-textMuted/40 text-[20px] leading-none select-none"
+            aria-hidden="true"
+            >·</span
+          >
+          <a
+            href="https://buymeacoffee.com/aykutkardas"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="text-[10px] font-mono text-textMuted/60 hover:text-textMuted/70 transition-colors"
+            >Buy Me a Coffee</a
+          >
+        </nav>
+
         <div
-          class="flex items-center justify-between mt-4 py-2 border-t border-borderSubtle"
+          class="flex items-center justify-between mt-3 py-2 border-t border-borderSubtle"
         >
           <span class="text-xs text-textMuted font-medium"
             >Hide read posts</span
@@ -485,7 +522,10 @@
       </header>
 
       <div class="flex-1 min-h-0 overflow-y-auto flex flex-col">
-        <div id="feedList" class="flex-1 min-h-0 p-4 space-y-3"></div>
+        <div
+          id="feedList"
+          class="flex-1 min-h-[content-fit] p-4 space-y-3"
+        ></div>
         <div
           id="loadMoreFooter"
           class="shrink-0 px-4 pb-6 pt-2 bg-appBg border-t border-borderSubtle/80"
