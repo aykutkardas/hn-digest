@@ -1,0 +1,4 @@
+# Docs and preview assets (keep in repo only; omit from Worker static upload)
+preview.png
+README.md
+LICENCE.md
