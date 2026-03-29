@@ -5,15 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>HN Daily Digest</title>
 
-    <link
-      href="https://cdn.jsdelivr.net/npm/geist@1.0.3/dist/fonts/geist-sans/style.css"
-      rel="stylesheet"
-    />
-    <link
-      href="https://cdn.jsdelivr.net/npm/geist@1.0.3/dist/fonts/geist-mono/style.css"
-      rel="stylesheet"
-    />
-
     <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 
@@ -44,6 +35,23 @@
       };
     </script>
     <style>
+      @font-face {
+        font-family: "Geist Sans";
+        src: url("https://cdn.jsdelivr.net/npm/geist@1.7.0/dist/fonts/geist-sans/Geist-Variable.woff2")
+          format("woff2");
+        font-weight: 100 900;
+        font-style: normal;
+        font-display: swap;
+      }
+      @font-face {
+        font-family: "Geist Mono";
+        src: url("https://cdn.jsdelivr.net/npm/geist@1.7.0/dist/fonts/geist-mono/GeistMono-Variable.woff2")
+          format("woff2");
+        font-weight: 100 900;
+        font-style: normal;
+        font-display: swap;
+      }
+
       body {
         background-color: #09090b;
         overflow: hidden;
@@ -176,8 +184,9 @@
           <div class="flex items-center gap-2">
             <button
               id="openSettingsBtn"
+              type="button"
               class="text-textMuted hover:text-white transition-colors"
-              title="Settings"
+              title="API key"
             >
               <svg
                 class="w-4 h-4"
@@ -393,35 +402,39 @@
     >
       <button
         id="closeSettingsBtn"
+        type="button"
         class="absolute top-5 right-5 text-textMuted hover:text-white"
       >
         &times;
       </button>
-      <h2 class="text-xl font-medium text-white mb-2">API Configuration</h2>
+      <h2 class="text-xl font-medium text-white mb-2">API key</h2>
       <p class="text-sm text-textMuted mb-6">
-        Enter your OpenAI API key. It is stored securely in your browser's local
-        storage and is never sent to our servers.
+        Your OpenAI key is saved in this browser only. It is sent to this app’s
+        server in the Authorization header when you request a summary.
       </p>
 
       <input
         type="password"
         id="apiKeyInput"
         placeholder="sk-..."
+        autocomplete="off"
         class="w-full bg-appBg border border-borderSubtle rounded-lg px-4 py-3 text-sm text-white focus:outline-none focus:border-hn mb-6 font-mono"
       />
 
       <div class="flex justify-end gap-3">
         <button
           id="clearKeyBtn"
+          type="button"
           class="px-4 py-2 rounded-lg text-sm text-textMuted hover:text-white transition-colors"
         >
-          Clear Key
+          Clear
         </button>
         <button
           id="saveKeyBtn"
+          type="button"
           class="px-4 py-2 rounded-lg text-sm bg-textMain text-black hover:bg-white font-medium transition-colors"
         >
-          Save Key
+          Save
         </button>
       </div>
     </dialog>
@@ -436,7 +449,6 @@
       let activeCardId = null;
       let currentActiveStory = null;
 
-      // Settings & API Key Logic
       const settingsModal = document.getElementById("settingsModal");
       const openSettingsBtn = document.getElementById("openSettingsBtn");
       const closeSettingsBtn = document.getElementById("closeSettingsBtn");
@@ -454,7 +466,6 @@
         if (apiKeyInput.value.trim()) {
           localStorage.setItem("openai_api_key", apiKeyInput.value.trim());
           settingsModal.close();
-          // Retrigger summary if a story is open
           if (currentActiveStory && activeCardId) {
             handleCardClick(
               currentActiveStory,
@@ -742,14 +753,7 @@
         }
       }
 
-      // 100% Client-Side Summary Logic
       async function handleCardClick(story, cardElement) {
-        const apiKey = localStorage.getItem("openai_api_key");
-        if (!apiKey) {
-          openSettingsBtn.click();
-          return;
-        }
-
         if (activeCardId) {
           const oldCard = document.getElementById(`card-${activeCardId}`);
           if (oldCard) oldCard.classList.remove("is-active");
@@ -803,69 +807,33 @@
         readerStatus.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-neutral-500 animate-pulse"></span> Fetching and analyzing...`;
 
         try {
-          let contentToSummarize = story.title;
+          const apiKey = (localStorage.getItem("openai_api_key") || "").trim();
+          const headers = {};
+          if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
 
-          // Client-side HTML extraction using a free public CORS proxy
-          if (story.url) {
-            try {
-              const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(
-                story.url
-              )}`;
-              const pageRes = await fetch(proxyUrl);
-              const proxyData = await pageRes.json();
-
-              if (proxyData.contents) {
-                const cleanText = proxyData.contents
-                  .replace(
-                    /<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi,
-                    ""
-                  )
-                  .replace(
-                    /<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi,
-                    ""
-                  )
-                  .replace(/<(?!img|iframe|\/iframe)[^>]+>/gi, " ")
-                  .replace(/\s+/g, " ")
-                  .substring(0, 15000);
-                contentToSummarize = `Title: ${story.title}\nContent: ${cleanText}`;
-              }
-            } catch (e) {
-              contentToSummarize = `Title: ${story.title}\n(Could not fetch page content, summarize based on title).`;
-            }
-          } else if (story.text) {
-            contentToSummarize = `Title: ${story.title}\nContent: ${story.text}`;
-          }
-
-          const systemPrompt = `You are an expert technical summarizer. Provide a detailed, insightful summary of the text using formatting (bullet points, bold text). 
-                CRITICAL INSTRUCTION 1: You MUST translate and write your entire response in the language corresponding to the ISO code '${currentLang}'. 
-                CRITICAL INSTRUCTION 2: If the source text contains important <img> or <iframe> tags (like YouTube videos or relevant charts), you SHOULD include them in your summary so the user can see them.`;
-
-          // Direct call to OpenAI from the browser using the user's key
-          const aiRes = await fetch(
-            "https://api.openai.com/v1/chat/completions",
-            {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${apiKey}`,
-              },
-              body: JSON.stringify({
-                model: "gpt-4o-mini",
-                messages: [
-                  { role: "system", content: systemPrompt },
-                  { role: "user", content: contentToSummarize },
-                ],
-                temperature: 0.5,
-              }),
-            }
+          const res = await fetch(
+            `/api/summarize?id=${encodeURIComponent(
+              story.id
+            )}&lang=${encodeURIComponent(currentLang)}`,
+            { headers }
           );
+          const data = await res.json().catch(() => ({}));
+          if (res.status === 401) {
+            openSettingsBtn.click();
+            readerStatus.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span> Add your OpenAI API key in settings (or set OPENAI_API_KEY on the server).`;
+            return;
+          }
+          if (!res.ok) {
+            throw new Error(data.error || "Summary request failed");
+          }
+          const summary = data.summary;
+          if (!summary) throw new Error("Empty summary");
 
-          const aiData = await aiRes.json();
-          if (aiData.error) throw new Error(aiData.error.message);
-
-          const summary = aiData.choices[0].message.content;
-
-          readerStatus.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-green-500"></span> Generated live (${currentLang.toUpperCase()})`;
+          const statusLabel = data.cached
+            ? `Server cache (${currentLang.toUpperCase()})`
+            : `Generated (${currentLang.toUpperCase()})`;
+          const dotClass = data.cached ? "bg-hn" : "bg-green-500";
+          readerStatus.innerHTML = `<span class="w-1.5 h-1.5 rounded-full ${dotClass}"></span> ${statusLabel}`;
           readerBody.innerHTML = marked.parse(summary);
 
           try {
@@ -875,7 +843,7 @@
           }
         } catch (err) {
           console.error(err);
-          readerStatus.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-red-500"></span> Generation failed. Check API Key.`;
+          readerStatus.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-red-500"></span> Summary failed — open settings and check your API key (or server OPENAI_API_KEY).`;
         }
       }
 

@@ -60,6 +60,16 @@ app.get("/api/summarize", async (req, res) => {
     return res.json({ summary: summaryCache.get(cacheKey), cached: true });
   }
 
+  const authHeader = req.get("authorization") || "";
+  const bearerMatch = authHeader.match(/^Bearer\s+(\S+)/i);
+  const apiKey = (bearerMatch?.[1] || "").trim() || process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    return res.status(401).json({
+      error:
+        "Missing OpenAI API key. Add your key in settings or set OPENAI_API_KEY on the server.",
+    });
+  }
+
   try {
     const storyRes = await fetch(
       `https://hacker-news.firebaseio.com/v0/item/${storyId}.json`
@@ -91,24 +101,32 @@ app.get("/api/summarize", async (req, res) => {
       contentToSummarize = `Title: ${story.title}\nContent: ${story.text}`;
     }
 
-    // UPDATED PROMPT: Encourage keeping the media
-    const systemPrompt = `You are an expert technical summarizer. Provide a detailed, insightful summary of the text using formatting (bullet points, bold text). 
-        CRITICAL INSTRUCTION 1: You MUST translate and write your entire response in the language corresponding to the ISO code '${lang}'. 
-        CRITICAL INSTRUCTION 2: If the source text contains important <img> or <iframe> tags (like YouTube videos or relevant charts), you SHOULD include them in your summary so the user can see them.`;
+    const systemPrompt = `You are an expert technical summarizer writing for readers who want depth, not a headline recap.
+
+Output requirements:
+- Write in the language for ISO code '${lang}' for the entire answer (headings, bullets, and prose).
+- Aim for substantial coverage when the source allows: multiple sections, rich bullets, and concrete detail (names, numbers, versions, claims, methodology) pulled from the text—not vague restatements.
+- Use clear Markdown: **bold** for emphasis, bullet lists where helpful, short subheadings (##) to organize longer answers.
+- If the source is long or dense, target roughly 500–900 words of useful synthesis unless the material is genuinely thin; never compress into a single short paragraph when more detail is justified.
+- If the source is only a title or very sparse, say what is unknown, give careful educated context, and clearly label speculation.
+- When the source includes important <img> or <iframe> tags (e.g. charts, embeds), preserve those tags in your summary so they still render.`;
+
+    const userPrompt = `Summarize the following for a technical audience. Be thorough: explain what happens, why it matters, and any notable details or tradeoffs mentioned.\n\n${contentToSummarize}`;
 
     const aiRes = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+        Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
         model: "gpt-4o-mini",
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: contentToSummarize },
+          { role: "user", content: userPrompt },
         ],
-        temperature: 0.5,
+        temperature: 0.45,
+        max_tokens: 4096,
       }),
     });
 
