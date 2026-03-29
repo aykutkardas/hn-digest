@@ -167,7 +167,7 @@
       class="w-full md:w-[380px] lg:w-[420px] flex flex-col h-full border-r border-borderSubtle bg-appBg shrink-0 relative z-20 transition-transform duration-300"
     >
       <header
-        class="shrink-0 p-5 border-b border-borderSubtle bg-appBg/90 backdrop-blur-md z-10 sticky top-0"
+        class="shrink-0 pt-5 [&>div]:px-5 border-b border-borderSubtle bg-appBg/90 backdrop-blur-md z-10 sticky top-0"
       >
         <div class="flex justify-between items-center mb-4">
           <div class="flex items-center gap-3">
@@ -245,24 +245,7 @@
           </div>
         </div>
 
-        <div
-          class="flex items-center justify-between mt-2 pt-2 border-t border-borderSubtle"
-        >
-          <span class="text-xs text-textMuted font-medium"
-            >Hide read posts</span
-          >
-          <button
-            id="hideReadToggle"
-            class="w-8 h-4.5 bg-surface border border-borderSubtle rounded-full relative transition-colors duration-200 focus:outline-none flex items-center px-0.5 hover:border-hn/50"
-          >
-            <div
-              id="toggleKnob"
-              class="w-3.5 h-3.5 bg-textMuted rounded-full shadow-sm transform transition-transform duration-200 translate-x-0"
-            ></div>
-          </button>
-        </div>
-
-        <div class="mt-4 pt-4 border-t border-borderSubtle">
+        <div class="pt-4 border-t border-borderSubtle">
           <div class="flex items-center justify-between mb-2.5">
             <span
               class="text-[10px] text-textMuted font-mono uppercase tracking-wider"
@@ -277,6 +260,23 @@
           <div class="overflow-x-hidden flex justify-end">
             <div id="activityGraph" class="activity-grid"></div>
           </div>
+        </div>
+
+        <div
+          class="flex items-center justify-between mt-4 py-2 border-t border-borderSubtle"
+        >
+          <span class="text-xs text-textMuted font-medium"
+            >Hide read posts</span
+          >
+          <button
+            id="hideReadToggle"
+            class="w-8 h-4.5 bg-surface border border-borderSubtle rounded-full relative transition-colors duration-200 focus:outline-none flex items-center px-0.5 hover:border-hn/50"
+          >
+            <div
+              id="toggleKnob"
+              class="w-3.5 h-3.5 bg-textMuted rounded-full shadow-sm transform transition-transform duration-200 translate-x-0"
+            ></div>
+          </button>
         </div>
       </header>
 
@@ -623,6 +623,13 @@
         return getReadStories().includes(id);
       }
 
+      function applyReadState(story, cardElement) {
+        cardElement.classList.add("is-read");
+        const icon = cardElement.querySelector(".check-icon");
+        if (icon) icon.classList.replace("hidden", "block");
+        markAsRead(story.id);
+      }
+
       mobileBackBtn.addEventListener("click", () => {
         feedPane.classList.remove("hidden");
         readerPane.classList.add("hidden");
@@ -761,12 +768,7 @@
         activeCardId = story.id;
         currentActiveStory = story;
 
-        cardElement.classList.add("is-active", "is-read");
-        cardElement
-          .querySelector(".check-icon")
-          .classList.replace("hidden", "block");
-
-        markAsRead(story.id);
+        cardElement.classList.add("is-active");
 
         if (window.innerWidth < 768) {
           feedPane.classList.add("hidden");
@@ -801,6 +803,7 @@
         if (browserCachedSummary) {
           readerStatus.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-hn"></span> Loaded from browser (${currentLang.toUpperCase()})`;
           readerBody.innerHTML = marked.parse(browserCachedSummary);
+          applyReadState(story, cardElement);
           return;
         }
 
@@ -841,6 +844,8 @@
           } catch (e) {
             console.warn("Local storage full, skipping browser cache.");
           }
+
+          applyReadState(story, cardElement);
         } catch (err) {
           console.error(err);
           readerStatus.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-red-500"></span> Summary failed — open settings and check your API key (or server OPENAI_API_KEY).`;
