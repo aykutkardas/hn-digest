@@ -481,21 +481,21 @@
         </div>
       </header>
 
-      <div
-        class="flex-1 overflow-y-auto p-4 space-y-3 pb-24"
-        id="feedList"
-      ></div>
-
-      <div
-        class="shrink-0 p-4 border-t border-borderSubtle bg-appBg text-center"
-      >
-        <button
-          id="loadMoreBtn"
-          type="button"
-          class="hidden w-full bg-surface border border-borderSubtle text-textMuted hover:text-hn hover:border-hn/50 px-4 py-2.5 rounded-lg text-xs font-medium transition-all duration-300 disabled:opacity-60 shadow-sm inline-flex items-center justify-center gap-2"
+      <div class="flex-1 min-h-0 overflow-y-auto flex flex-col">
+        <div id="feedList" class="flex-1 min-h-0 p-4 space-y-3"></div>
+        <div
+          id="loadMoreFooter"
+          class="shrink-0 px-4 pb-6 pt-2 bg-appBg border-t border-borderSubtle/80"
         >
-          Load More
-        </button>
+          <button
+            id="loadMoreBtn"
+            type="button"
+            disabled
+            class="w-full bg-surface border border-borderSubtle text-textMuted hover:text-hn hover:border-hn/50 px-4 py-2.5 rounded-lg text-xs font-medium transition-all duration-300 disabled:opacity-60 disabled:hover:text-textMuted disabled:hover:border-borderSubtle shadow-sm inline-flex items-center justify-center gap-2"
+          >
+            Load More
+          </button>
+        </div>
       </div>
     </aside>
 
@@ -985,7 +985,10 @@
       }
 
       function getReadStats() {
-        const o = safeJsonParse(localStorage.getItem(LS_READ_STATS) || "{}", {});
+        const o = safeJsonParse(
+          localStorage.getItem(LS_READ_STATS) || "{}",
+          {}
+        );
         return o && typeof o === "object" && !Array.isArray(o) ? o : {};
       }
 
@@ -1402,9 +1405,13 @@
       });
 
       async function loadStoriesClient(page = 1) {
+        let loadMoreEnabled = false;
+        let loadMoreLabel = "Load More";
+
+        loadMoreBtn.disabled = true;
+        loadMoreBtn.innerHTML = `${SPINNER_SVG}<span>Loading…</span>`;
+
         if (page > 1) {
-          loadMoreBtn.disabled = true;
-          loadMoreBtn.innerHTML = `${SPINNER_SVG}<span>Loading…</span>`;
           for (let i = 0; i < 3; i++) {
             feedList.appendChild(createFeedSkeletonCard());
           }
@@ -1419,9 +1426,15 @@
         }
 
         try {
-          let topIds = safeJsonParse(localStorage.getItem(LS_TOP_IDS) || "[]", []);
+          let topIds = safeJsonParse(
+            localStorage.getItem(LS_TOP_IDS) || "[]",
+            []
+          );
           if (!Array.isArray(topIds)) topIds = [];
-          let lastFetch = parseInt(localStorage.getItem(LS_TOP_TIME) || "0", 10);
+          let lastFetch = parseInt(
+            localStorage.getItem(LS_TOP_TIME) || "0",
+            10
+          );
 
           if (Date.now() - lastFetch > 15 * 60 * 1000 || topIds.length === 0) {
             const res = await fetch(
@@ -1526,11 +1539,9 @@
           });
           feedList.appendChild(frag);
 
-          if (page * FEED_PAGE_SIZE < topIds.length) {
-            loadMoreBtn.classList.remove("hidden");
-          } else {
-            loadMoreBtn.classList.add("hidden");
-          }
+          const hasMore = page * FEED_PAGE_SIZE < topIds.length;
+          loadMoreEnabled = hasMore;
+          loadMoreLabel = hasMore ? "Load More" : "All stories loaded";
 
           if (page === 1) {
             statusDot.classList.remove("animate-pulse");
@@ -1541,19 +1552,25 @@
             statusDot.classList.remove("animate-pulse");
             statusDot.classList.replace("bg-hn", "bg-red-500");
             statusTextEl.textContent = "Error";
+            loadMoreEnabled = false;
+            loadMoreLabel = "Load More";
             feedList.innerHTML =
               '<p class="text-sm text-red-400/90 px-2 py-10 text-center">Couldn’t load stories. Check your connection and try again.</p>';
           } else {
+            loadMoreEnabled = true;
+            loadMoreLabel = "Load More";
             feedList
               .querySelectorAll("[data-feed-skeleton]")
               .forEach((el) => el.remove());
           }
         } finally {
-          if (page > 1) {
-            loadMoreBtn.innerHTML = "Load More";
-            loadMoreBtn.disabled = false;
-          }
+          loadMoreBtn.textContent = loadMoreLabel;
+          loadMoreBtn.disabled = !loadMoreEnabled;
         }
+      }
+
+      function summaryStatusLangSuffix() {
+        return currentLang === "en" ? "" : ` (${currentLang.toUpperCase()})`;
       }
 
       async function handleCardClick(story, cardElement) {
@@ -1605,7 +1622,7 @@
         const browserCachedSummary = localStorage.getItem(localCacheKey);
 
         if (browserCachedSummary) {
-          readerStatus.innerHTML = `<span class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-hn shrink-0"></span><span class="uppercase tracking-wider">Loaded from browser (${currentLang.toUpperCase()})</span></span>`;
+          readerStatus.innerHTML = `<span class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-hn shrink-0"></span><span class="uppercase tracking-wider">Loaded from cache${summaryStatusLangSuffix()}</span></span>`;
           readerBody.innerHTML = markdownToSafeHtml(browserCachedSummary);
           applyBlankTargets(readerBody);
           void readerBody.offsetWidth;
@@ -1644,8 +1661,8 @@
           if (!summary) throw new Error("Empty summary");
 
           const statusLabel = data.cached
-            ? `Server cache (${currentLang.toUpperCase()})`
-            : `Generated (${currentLang.toUpperCase()})`;
+            ? `Server cache${summaryStatusLangSuffix()}`
+            : `Generated${summaryStatusLangSuffix()}`;
           const dotClass = data.cached ? "bg-hn" : "bg-green-500";
           readerStatus.innerHTML = `<span class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full ${dotClass} shrink-0"></span><span class="uppercase tracking-wider">${statusLabel}</span></span>`;
           readerBody.classList.remove("opacity-50");
