@@ -1,23 +1,36 @@
-import express from "express";
-import dotenv from "dotenv";
-import path from "path";
-import { fileURLToPath } from "url";
-
-dotenv.config();
-
-const app = express();
-const PORT = process.env.PORT || 3000;
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
-app.use(express.static(path.join(__dirname, "public")));
-
+const LIST_CACHE_TTL = 15 * 60 * 1000;
 let topStoryIdsCache = { time: 0, ids: [] };
 const summaryCache = new Map();
-const LIST_CACHE_TTL = 15 * 60 * 1000;
 
-app.get("/api/stories", async (req, res) => {
+function corsHeaders() {
+  return {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Headers": "Authorization, Content-Type, X-OpenAI-Key",
+    "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
+  };
+}
+
+function json(data, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { "Content-Type": "application/json", ...corsHeaders() },
+  });
+}
+
+function openAiKeyFromRequest(request) {
+  const authHeader = (request.headers.get("authorization") || "").trim();
+  let m = authHeader.match(/^Bearer\s+([\s\S]+)$/i);
+  let token = (m?.[1] || "").trim();
+  while (/^bearer\s+/i.test(token)) {
+    token = token.replace(/^bearer\s+/i, "").trim();
+  }
+  if (token) return token;
+  return (request.headers.get("x-openai-key") || "").trim();
+}
+
+async function handleStories(url) {
   try {
-    const page = parseInt(req.query.page) || 1;
+    const page = parseInt(url.searchParams.get("page") || "1", 10) || 1;
     const limit = 15;
     const startIndex = (page - 1) * limit;
     const endIndex = page * limit;
@@ -35,7 +48,6 @@ app.get("/api/stories", async (req, res) => {
     }
 
     const pageIds = topIds.slice(startIndex, endIndex);
-
     const storyPromises = pageIds.map((id) =>
       fetch(`https://hacker-news.firebaseio.com/v0/item/${id}.json`).then((r) =>
         r.json()
@@ -43,31 +55,41 @@ app.get("/api/stories", async (req, res) => {
     );
     const stories = await Promise.all(storyPromises);
 
-    res.json({ stories, hasMore: endIndex < topIds.length });
-  } catch (error) {
-    res.status(500).json({ error: "Failed to fetch stories" });
+    return json({
+      stories,
+      hasMore: endIndex < topIds.length,
+    });
+  } catch {
+    return json({ error: "Failed to fetch stories" }, 500);
   }
-});
+}
 
-app.get("/api/summarize", async (req, res) => {
-  const storyId = req.query.id;
-  const lang = req.query.lang || "en";
-  if (!storyId) return res.status(400).json({ error: "Missing story ID" });
+async function handleSummarize(request, url, env) {
+  const storyId = url.searchParams.get("id");
+  const lang = url.searchParams.get("lang") || "en";
+
+  if (!storyId) {
+    return json({ error: "Missing story ID" }, 400);
+  }
 
   const cacheKey = `${storyId}_${lang}`;
-
   if (summaryCache.has(cacheKey)) {
-    return res.json({ summary: summaryCache.get(cacheKey), cached: true });
+    return json({
+      summary: summaryCache.get(cacheKey),
+      cached: true,
+    });
   }
 
-  const authHeader = req.get("authorization") || "";
-  const bearerMatch = authHeader.match(/^Bearer\s+(\S+)/i);
-  const apiKey = (bearerMatch?.[1] || "").trim() || process.env.OPENAI_API_KEY;
+  const apiKey =
+    openAiKeyFromRequest(request) || (env.OPENAI_API_KEY || "").trim();
   if (!apiKey) {
-    return res.status(401).json({
-      error:
-        "Missing OpenAI API key. Add your key in settings or set OPENAI_API_KEY on the server.",
-    });
+    return json(
+      {
+        error:
+          "Missing OpenAI API key. Add your key in settings or set OPENAI_API_KEY as a Worker secret.",
+      },
+      401
+    );
   }
 
   try {
@@ -80,21 +102,26 @@ app.get("/api/summarize", async (req, res) => {
 
     if (story.url) {
       try {
-        const pageRes = await fetch(story.url, {
-          signal: AbortSignal.timeout(5000),
-        });
-        const html = await pageRes.text();
+        const controller = new AbortController();
+        const t = setTimeout(() => controller.abort(), 5000);
+        try {
+          const pageRes = await fetch(story.url, {
+            signal: controller.signal,
+          });
+          const html = await pageRes.text();
 
-        // UPDATED REGEX: Strips scripts/styles, and all tags EXCEPT <img> and <iframe>
-        const cleanText = html
-          .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
-          .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, "")
-          .replace(/<(?!img|iframe|\/iframe)[^>]+>/gi, " ")
-          .replace(/\s+/g, " ")
-          .substring(0, 15000);
+          const cleanText = html
+            .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
+            .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, "")
+            .replace(/<(?!img|iframe|\/iframe)[^>]+>/gi, " ")
+            .replace(/\s+/g, " ")
+            .substring(0, 15000);
 
-        contentToSummarize = `Title: ${story.title}\nContent: ${cleanText}`;
-      } catch (e) {
+          contentToSummarize = `Title: ${story.title}\nContent: ${cleanText}`;
+        } finally {
+          clearTimeout(t);
+        }
+      } catch {
         contentToSummarize = `Title: ${story.title}\n(Could not fetch page content, summarize based on title).`;
       }
     } else if (story.text) {
@@ -131,18 +158,38 @@ Output requirements:
     });
 
     const aiData = await aiRes.json();
-    if (aiData.error) throw new Error(aiData.error.message);
+    if (aiData.error) {
+      throw new Error(aiData.error.message || "OpenAI error");
+    }
 
     const summary = aiData.choices[0].message.content;
-
     summaryCache.set(cacheKey, summary);
-    res.json({ summary, cached: false });
+
+    return json({ summary, cached: false });
   } catch (error) {
     console.error("Summary Error:", error);
-    res.status(500).json({ error: "Failed to generate summary." });
+    const message =
+      error instanceof Error ? error.message : "Failed to generate summary.";
+    return json({ error: message }, 500);
   }
-});
+}
 
-app.listen(PORT, () =>
-  console.log(`Server running at http://localhost:${PORT}`)
-);
+export default {
+  async fetch(request, env, ctx) {
+    if (request.method === "OPTIONS") {
+      return new Response(null, { status: 204, headers: corsHeaders() });
+    }
+
+    const url = new URL(request.url);
+    const path = url.pathname.replace(/\/$/, "") || "/";
+
+    if (path === "/api/stories") {
+      return handleStories(url);
+    }
+    if (path === "/api/summarize") {
+      return handleSummarize(request, url, env);
+    }
+
+    return env.ASSETS.fetch(request);
+  },
+};

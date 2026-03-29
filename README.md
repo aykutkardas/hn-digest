@@ -1,44 +1,60 @@
 # hn-digest
 
-A small web app that lists [Hacker News](https://news.ycombinator.com/) top stories and generates AI summaries (with optional translation) using the OpenAI API. The backend is Express; the UI is static files under `public/`.
+A small web app that lists [Hacker News](https://news.ycombinator.com/) top stories and generates AI summaries (with optional translation) using the OpenAI API. The UI lives in `public/`; **Cloudflare Workers** (`worker.js`) serves those assets and implements `/api/*` via Wrangler — see [`wrangler.jsonc`](wrangler.jsonc).
 
 ![hn-digest preview](preview.png)
 
 ## Requirements
 
-- [Node.js](https://nodejs.org/) 18 or newer (uses built-in `fetch`)
-- An [OpenAI API key](https://platform.openai.com/) for `/api/summarize`
+- [Node.js](https://nodejs.org/) 18 or newer (for Wrangler)
+- An [OpenAI API key](https://platform.openai.com/) — either in the app settings (stored in the browser and sent as `Authorization: Bearer …`) and/or as a Worker secret
 
 ## Setup
 
-1. Clone the repository and install dependencies:
+1. Install dependencies:
 
    ```bash
    npm install
    ```
 
-2. Create a `.env` file in the project root:
+2. Log in to Cloudflare (once):
+
+   ```bash
+   npx wrangler login
+   ```
+
+3. (Optional) For local `npm run dev`, create `.dev.vars` in the project root (do not commit it):
 
    ```bash
    OPENAI_API_KEY=sk-...
    ```
 
-   Optional: set `PORT` (defaults to `3000`).
-
-3. Start the server:
+4. Run locally (Worker + static assets):
 
    ```bash
-   node server.js
+   npm run dev
    ```
 
-4. Open [http://localhost:3000](http://localhost:3000) (or your `PORT`) in a browser.
+   Wrangler prints the local URL (often `http://localhost:8787`).
 
-To avoid Node’s “module type not specified” warning, you can add `"type": "module"` to `package.json`.
+5. (Optional) Set a default OpenAI key on the deployed Worker so visitors can summarize without pasting a key:
+
+   ```bash
+   npx wrangler secret put OPENAI_API_KEY
+   ```
+
+6. Deploy:
+
+   ```bash
+   npm run deploy
+   ```
 
 ## API
 
-- `GET /api/stories?page=1` — Paginated top stories from the HN Firebase API (cached ~15 minutes).
-- `GET /api/summarize?id=<storyId>&lang=<iso>` — Generates a cached summary for a story; `lang` defaults to `en`.
+Routes are implemented in `worker.js`:
+
+- `GET /api/stories?page=1` — Paginated top stories from the HN Firebase API (cached ~15 minutes in memory).
+- `GET /api/summarize?id=<storyId>&lang=<iso>` — Generates a cached summary; `lang` defaults to `en`. Send `Authorization: Bearer <OpenAI key>` and/or set the `OPENAI_API_KEY` secret / `.dev.vars`.
 
 ## Licence
 
