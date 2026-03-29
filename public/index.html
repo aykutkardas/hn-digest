@@ -642,9 +642,14 @@
                     <button
                       id="readerHnBtn"
                       type="button"
-                      class="text-[13px] text-textMuted hover:text-hn underline underline-offset-4 hidden transition-colors font-medium"
+                      title="Toggle thread (keyboard: C)"
+                      class="text-[13px] text-textMuted hover:text-hn hidden transition-colors font-medium inline-flex items-center gap-2"
                     >
-                      HN Comments
+                      <span class="underline underline-offset-4">HN Comments</span>
+                      <kbd
+                        class="pointer-events-none select-none rounded border border-borderSubtle/90 bg-appBg px-1.5 py-0.5 text-[10px] font-mono text-textMuted/55 leading-none"
+                        >C</kbd
+                      >
                     </button>
                   </div>
                 </div>
@@ -668,9 +673,16 @@
             <div
               class="shrink-0 flex items-center justify-between gap-3 px-4 py-3 border-b border-borderSubtle bg-surface/80 backdrop-blur-md"
             >
-              <span class="text-sm font-medium text-textMain tracking-tight"
-                >Thread</span
-              >
+              <div class="flex items-center gap-2 min-w-0">
+                <span class="text-sm font-medium text-textMain tracking-tight"
+                  >Thread</span
+                >
+                <kbd
+                  class="pointer-events-none select-none shrink-0 rounded border border-borderSubtle/90 bg-appBg px-1.5 py-0.5 text-[10px] font-mono text-textMuted/55 leading-none"
+                  title="Toggle thread"
+                  >C</kbd
+                >
+              </div>
               <div class="flex items-center gap-2 shrink-0">
                 <a
                   id="commentsExternalLink"
@@ -1152,9 +1164,80 @@
         closeCommentsPanel(true)
       );
 
+      function visibleFeedCards() {
+        return Array.from(
+          feedList.querySelectorAll(".story-card[id^='card-']")
+        ).filter((el) => el.offsetParent !== null);
+      }
+
+      function keyboardInFormField() {
+        const a = document.activeElement;
+        if (!a) return false;
+        const tag = a.tagName;
+        if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT")
+          return true;
+        if (a.isContentEditable) return true;
+        return false;
+      }
+
+      function shouldArrowNavigateFeed() {
+        if (keyboardInFormField()) return false;
+        const a = document.activeElement;
+        if (readerBody.contains(a)) return false;
+        if (commentsBody.contains(a)) return false;
+        return true;
+      }
+
+      function navigateFeedByArrow(delta) {
+        const cards = visibleFeedCards();
+        if (!cards.length) return;
+        let idx = cards.findIndex((c) => c.id === `card-${activeCardId}`);
+        if (idx === -1) {
+          idx = delta > 0 ? -1 : cards.length;
+        }
+        const next = Math.max(0, Math.min(cards.length - 1, idx + delta));
+        if (next === idx) return;
+        const card = cards[next];
+        card.scrollIntoView({ block: "nearest", behavior: "smooth" });
+        card.click();
+      }
+
+      function toggleCommentsKeyboard() {
+        if (!currentActiveStory) return;
+        const open = !commentsPane.classList.contains("hidden");
+        if (open) closeCommentsPanel(true);
+        else openCommentsPanelForStory(currentActiveStory, true);
+      }
+
       document.addEventListener("keydown", (e) => {
-        if (e.key === "Escape" && !commentsPane.classList.contains("hidden")) {
-          closeCommentsPanel(true);
+        if (settingsModal.open) return;
+
+        if (keyboardInFormField()) return;
+
+        if (e.key === "Escape") {
+          if (!commentsPane.classList.contains("hidden")) {
+            e.preventDefault();
+            closeCommentsPanel(true);
+          }
+          return;
+        }
+
+        if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+          if (!e.ctrlKey && !e.metaKey && !e.altKey && shouldArrowNavigateFeed()) {
+            e.preventDefault();
+            navigateFeedByArrow(e.key === "ArrowDown" ? 1 : -1);
+          }
+          return;
+        }
+
+        if (
+          (e.key === "c" || e.key === "C") &&
+          !e.ctrlKey &&
+          !e.metaKey &&
+          !e.altKey
+        ) {
+          e.preventDefault();
+          toggleCommentsKeyboard();
         }
       });
 
