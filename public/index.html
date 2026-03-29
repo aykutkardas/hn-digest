@@ -1,0 +1,886 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>HN Daily Digest</title>
+
+    <link
+      href="https://cdn.jsdelivr.net/npm/geist@1.0.3/dist/fonts/geist-sans/style.css"
+      rel="stylesheet"
+    />
+    <link
+      href="https://cdn.jsdelivr.net/npm/geist@1.0.3/dist/fonts/geist-mono/style.css"
+      rel="stylesheet"
+    />
+
+    <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['"Geist Sans"', "sans-serif"],
+              mono: ['"Geist Mono"', "monospace"],
+            },
+            colors: {
+              appBg: "#09090b",
+              surface: "#18181b",
+              surfaceHover: "#27272a",
+              borderSubtle: "#27272a",
+              borderHover: "#3f3f46",
+              textMain: "#e4e4e7",
+              textMuted: "#a1a1aa",
+              hn: "#ff6600",
+            },
+            animation: { "fade-in": "fadeIn 0.3s ease-out forwards" },
+            keyframes: {
+              fadeIn: { "0%": { opacity: "0" }, "100%": { opacity: "1" } },
+            },
+          },
+        },
+      };
+    </script>
+    <style>
+      body {
+        background-color: #09090b;
+        overflow: hidden;
+      }
+      ::-webkit-scrollbar {
+        width: 5px;
+      }
+      ::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #3f3f46;
+        border-radius: 10px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #52525b;
+      }
+
+      .prose {
+        color: #a1a1aa;
+        font-family: "Geist Sans", sans-serif;
+        line-height: 1.75;
+        font-size: 1.05rem;
+      }
+      .prose strong {
+        color: #e4e4e7;
+        font-weight: 500;
+      }
+      .prose h1,
+      .prose h2,
+      .prose h3 {
+        color: #e4e4e7;
+        font-weight: 500;
+        letter-spacing: -0.02em;
+        margin-top: 1.5em;
+        margin-bottom: 0.5em;
+      }
+      .prose p {
+        margin-bottom: 1.25em;
+      }
+      .prose ul > li::marker {
+        color: #71717a;
+      }
+      .prose ul > li {
+        margin-top: 0.25em;
+        margin-bottom: 0.25em;
+      }
+
+      .prose img,
+      .prose video {
+        max-width: 100%;
+        height: auto;
+        border-radius: 0.5rem;
+        margin-top: 1.5em;
+        margin-bottom: 1.5em;
+        border: 1px solid #27272a;
+      }
+      .prose iframe {
+        width: 100%;
+        aspect-ratio: 16 / 9;
+        border-radius: 0.5rem;
+        margin-top: 1.5em;
+        margin-bottom: 1.5em;
+        border: 1px solid #27272a;
+        background: #09090b;
+      }
+
+      .story-card {
+        transition: all 0.2s ease-in-out;
+      }
+      .is-read {
+        background-color: rgba(255, 102, 0, 0.03);
+        border-color: rgba(255, 102, 0, 0.1);
+        opacity: 0.75;
+      }
+      .is-read:hover {
+        opacity: 1;
+        background-color: rgba(255, 102, 0, 0.06);
+      }
+      .is-active {
+        background-color: #27272a !important;
+        border-color: #3f3f46 !important;
+        opacity: 1 !important;
+      }
+      body.hide-read-active .story-card.is-read {
+        display: none !important;
+      }
+
+      select {
+        -webkit-appearance: none;
+        -moz-appearance: none;
+        appearance: none;
+      }
+
+      .activity-grid {
+        display: grid;
+        grid-template-rows: repeat(7, 1fr);
+        grid-auto-flow: column;
+        gap: 3px;
+      }
+
+      dialog::backdrop {
+        background: rgba(0, 0, 0, 0.75);
+        backdrop-filter: blur(8px);
+      }
+    </style>
+  </head>
+  <body
+    class="bg-appBg text-textMain font-sans h-screen flex antialiased selection:bg-hn selection:text-white"
+  >
+    <aside
+      id="feedPane"
+      class="w-full md:w-[380px] lg:w-[420px] flex flex-col h-full border-r border-borderSubtle bg-appBg shrink-0 relative z-20 transition-transform duration-300"
+    >
+      <header
+        class="shrink-0 p-5 border-b border-borderSubtle bg-appBg/90 backdrop-blur-md z-10 sticky top-0"
+      >
+        <div class="flex justify-between items-center mb-4">
+          <div class="flex items-center gap-3">
+            <div
+              class="w-5 h-5 rounded border border-hn/30 bg-hn/10 flex items-center justify-center"
+            >
+              <div class="w-2 h-2 rounded-full bg-hn"></div>
+            </div>
+            <h1 class="text-sm font-semibold tracking-tight text-textMain">
+              hn.digest
+            </h1>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <button
+              id="openSettingsBtn"
+              class="text-textMuted hover:text-white transition-colors"
+              title="Settings"
+            >
+              <svg
+                class="w-4 h-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+                ></path>
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                ></path>
+              </svg>
+            </button>
+            <div class="relative">
+              <select
+                id="langSelect"
+                class="bg-surface border border-borderSubtle text-textMuted text-[10px] font-mono rounded px-2 py-1 pr-6 cursor-pointer hover:text-textMain hover:border-borderHover transition-colors focus:outline-none uppercase shadow-sm"
+              ></select>
+              <div
+                class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-1.5 text-textMuted"
+              >
+                <svg
+                  class="w-3 h-3"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M19 9l-7 7-7-7"
+                  ></path>
+                </svg>
+              </div>
+            </div>
+
+            <div
+              id="status"
+              class="text-[10px] font-mono text-textMuted bg-surface border border-borderSubtle px-2 py-1 rounded flex items-center gap-1.5 shadow-sm"
+            >
+              <span
+                class="w-1.5 h-1.5 rounded-full bg-hn animate-pulse"
+                id="statusDot"
+              ></span>
+              <span id="statusText">Live</span>
+            </div>
+          </div>
+        </div>
+
+        <div
+          class="flex items-center justify-between mt-2 pt-2 border-t border-borderSubtle"
+        >
+          <span class="text-xs text-textMuted font-medium"
+            >Hide read posts</span
+          >
+          <button
+            id="hideReadToggle"
+            class="w-8 h-4.5 bg-surface border border-borderSubtle rounded-full relative transition-colors duration-200 focus:outline-none flex items-center px-0.5 hover:border-hn/50"
+          >
+            <div
+              id="toggleKnob"
+              class="w-3.5 h-3.5 bg-textMuted rounded-full shadow-sm transform transition-transform duration-200 translate-x-0"
+            ></div>
+          </button>
+        </div>
+
+        <div class="mt-4 pt-4 border-t border-borderSubtle">
+          <div class="flex items-center justify-between mb-2.5">
+            <span
+              class="text-[10px] text-textMuted font-mono uppercase tracking-wider"
+              >Reading Activity</span
+            >
+            <span
+              id="totalReadsText"
+              class="text-[10px] font-mono text-hn font-medium"
+              >0 Total</span
+            >
+          </div>
+          <div class="overflow-x-hidden flex justify-end">
+            <div id="activityGraph" class="activity-grid"></div>
+          </div>
+        </div>
+      </header>
+
+      <div
+        class="flex-1 overflow-y-auto p-4 space-y-3 pb-24"
+        id="feedList"
+      ></div>
+
+      <div
+        class="shrink-0 p-4 border-t border-borderSubtle bg-appBg text-center"
+      >
+        <button
+          id="loadMoreBtn"
+          class="hidden w-full bg-surface border border-borderSubtle text-textMuted hover:text-hn hover:border-hn/50 px-4 py-2.5 rounded-lg text-xs font-medium transition-all duration-300 disabled:opacity-50 shadow-sm"
+        >
+          Load More
+        </button>
+      </div>
+    </aside>
+
+    <main
+      id="readerPane"
+      class="flex-1 h-full bg-surface relative hidden md:flex flex-col overflow-hidden"
+    >
+      <div
+        id="emptyState"
+        class="absolute inset-0 flex flex-col items-center justify-center text-textMuted animate-fade-in"
+      >
+        <svg
+          class="w-12 h-12 mb-4 text-borderSubtle"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="1"
+            d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10l6 6v10a2 2 0 01-2 2z"
+          ></path>
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="1"
+            d="M14 4v5h5M10 14h4M10 18h4M8 10h8"
+          ></path>
+        </svg>
+        <p class="text-sm">Select a story to generate summary</p>
+      </div>
+
+      <div
+        id="readerContent"
+        class="hidden h-full flex-col overflow-y-auto w-full relative"
+      >
+        <div
+          class="sticky top-0 z-20 bg-surface/95 backdrop-blur-xl border-b border-borderSubtle shadow-sm flex flex-col shrink-0"
+        >
+          <div class="md:hidden p-4 border-b border-borderSubtle">
+            <button
+              id="mobileBackBtn"
+              class="text-sm text-textMuted hover:text-textMain flex items-center gap-2"
+            >
+              <svg
+                class="w-4 h-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M15 19l-7-7 7-7"
+                ></path>
+              </svg>
+              Back to Feed
+            </button>
+          </div>
+
+          <div class="p-8 md:p-12 lg:px-20">
+            <h2
+              id="readerTitle"
+              class="text-2xl md:text-3xl font-medium tracking-tight text-textMain leading-snug selection:bg-hn selection:text-white"
+            ></h2>
+
+            <div class="flex flex-wrap items-center gap-4 mt-6">
+              <div
+                id="readerStatus"
+                class="inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-[11px] font-mono border border-borderSubtle bg-appBg text-textMuted uppercase tracking-wider shadow-sm"
+              >
+                Loading...
+              </div>
+              <a
+                id="readerLink"
+                href="#"
+                target="_blank"
+                class="text-[13px] text-textMuted hover:text-hn underline underline-offset-4 hidden transition-colors font-medium"
+                >Read Source ↗</a
+              >
+              <a
+                id="readerHnLink"
+                href="#"
+                target="_blank"
+                class="text-[13px] text-textMuted hover:text-hn underline underline-offset-4 hidden transition-colors font-medium"
+                >HN Comments ↗</a
+              >
+            </div>
+          </div>
+        </div>
+
+        <div class="p-8 md:p-12 lg:px-20 pb-32">
+          <div
+            id="readerBody"
+            class="prose prose-invert w-full max-w-2xl selection:bg-hn selection:text-white"
+          ></div>
+        </div>
+      </div>
+    </main>
+
+    <dialog
+      id="settingsModal"
+      class="bg-surface border border-borderSubtle rounded-2xl p-8 max-w-md w-[90vw] mx-auto shadow-2xl relative text-left"
+    >
+      <button
+        id="closeSettingsBtn"
+        class="absolute top-5 right-5 text-textMuted hover:text-white"
+      >
+        &times;
+      </button>
+      <h2 class="text-xl font-medium text-white mb-2">API Configuration</h2>
+      <p class="text-sm text-textMuted mb-6">
+        Enter your OpenAI API key. It is stored securely in your browser's local
+        storage and is never sent to our servers.
+      </p>
+
+      <input
+        type="password"
+        id="apiKeyInput"
+        placeholder="sk-..."
+        class="w-full bg-appBg border border-borderSubtle rounded-lg px-4 py-3 text-sm text-white focus:outline-none focus:border-hn mb-6 font-mono"
+      />
+
+      <div class="flex justify-end gap-3">
+        <button
+          id="clearKeyBtn"
+          class="px-4 py-2 rounded-lg text-sm text-textMuted hover:text-white transition-colors"
+        >
+          Clear Key
+        </button>
+        <button
+          id="saveKeyBtn"
+          class="px-4 py-2 rounded-lg text-sm bg-textMain text-black hover:bg-white font-medium transition-colors"
+        >
+          Save Key
+        </button>
+      </div>
+    </dialog>
+
+    <script>
+      const SUPPORTED_LANGUAGES = [
+        { code: "en", name: "ENG" },
+        { code: "tr", name: "TR" },
+      ];
+
+      let currentLang = localStorage.getItem("preferredLang") || "en";
+      let activeCardId = null;
+      let currentActiveStory = null;
+
+      // Settings & API Key Logic
+      const settingsModal = document.getElementById("settingsModal");
+      const openSettingsBtn = document.getElementById("openSettingsBtn");
+      const closeSettingsBtn = document.getElementById("closeSettingsBtn");
+      const saveKeyBtn = document.getElementById("saveKeyBtn");
+      const clearKeyBtn = document.getElementById("clearKeyBtn");
+      const apiKeyInput = document.getElementById("apiKeyInput");
+
+      openSettingsBtn.addEventListener("click", () => {
+        apiKeyInput.value = localStorage.getItem("openai_api_key") || "";
+        settingsModal.showModal();
+      });
+      closeSettingsBtn.addEventListener("click", () => settingsModal.close());
+
+      saveKeyBtn.addEventListener("click", () => {
+        if (apiKeyInput.value.trim()) {
+          localStorage.setItem("openai_api_key", apiKeyInput.value.trim());
+          settingsModal.close();
+          // Retrigger summary if a story is open
+          if (currentActiveStory && activeCardId) {
+            handleCardClick(
+              currentActiveStory,
+              document.getElementById(`card-${activeCardId}`)
+            );
+          }
+        }
+      });
+
+      clearKeyBtn.addEventListener("click", () => {
+        localStorage.removeItem("openai_api_key");
+        apiKeyInput.value = "";
+      });
+
+      // Language Selector Logic
+      const langSelect = document.getElementById("langSelect");
+      SUPPORTED_LANGUAGES.forEach((lang) => {
+        const option = document.createElement("option");
+        option.value = lang.code;
+        option.textContent = lang.name;
+        if (lang.code === currentLang) option.selected = true;
+        langSelect.appendChild(option);
+      });
+
+      langSelect.addEventListener("change", (e) => {
+        currentLang = e.target.value;
+        localStorage.setItem("preferredLang", currentLang);
+        if (currentActiveStory && activeCardId) {
+          const currentCard = document.getElementById(`card-${activeCardId}`);
+          handleCardClick(currentActiveStory, currentCard);
+        }
+      });
+
+      const feedList = document.getElementById("feedList");
+      const statusDot = document.getElementById("statusDot");
+      const loadMoreBtn = document.getElementById("loadMoreBtn");
+      const readerPane = document.getElementById("readerPane");
+      const feedPane = document.getElementById("feedPane");
+      const emptyState = document.getElementById("emptyState");
+      const readerContent = document.getElementById("readerContent");
+      const readerTitle = document.getElementById("readerTitle");
+      const readerStatus = document.getElementById("readerStatus");
+      const readerBody = document.getElementById("readerBody");
+      const readerLink = document.getElementById("readerLink");
+      const readerHnLink = document.getElementById("readerHnLink");
+      const mobileBackBtn = document.getElementById("mobileBackBtn");
+
+      let currentPage = 1;
+      let hideReadActive = false;
+
+      const hideReadToggle = document.getElementById("hideReadToggle");
+      const toggleKnob = document.getElementById("toggleKnob");
+
+      hideReadToggle.addEventListener("click", () => {
+        hideReadActive = !hideReadActive;
+        document.body.classList.toggle("hide-read-active", hideReadActive);
+        if (hideReadActive) {
+          toggleKnob.classList.replace("translate-x-0", "translate-x-[14px]");
+          toggleKnob.classList.replace("bg-textMuted", "bg-hn");
+          hideReadToggle.classList.add("border-hn/50");
+        } else {
+          toggleKnob.classList.replace("translate-x-[14px]", "translate-x-0");
+          toggleKnob.classList.replace("bg-hn", "bg-textMuted");
+          hideReadToggle.classList.remove("border-hn/50");
+        }
+      });
+
+      function timeAgo(unixTimestamp) {
+        const seconds = Math.floor(
+          (new Date() - new Date(unixTimestamp * 1000)) / 1000
+        );
+        let interval = seconds / 31536000;
+        if (interval > 1) return Math.floor(interval) + "y ago";
+        interval = seconds / 2592000;
+        if (interval > 1) return Math.floor(interval) + "mo ago";
+        interval = seconds / 86400;
+        if (interval > 1) return Math.floor(interval) + "d ago";
+        interval = seconds / 3600;
+        if (interval > 1) return Math.floor(interval) + "h ago";
+        interval = seconds / 60;
+        if (interval > 1) return Math.floor(interval) + "m ago";
+        return Math.floor(seconds) + "s ago";
+      }
+
+      function getReadStats() {
+        return JSON.parse(localStorage.getItem("readStats") || "{}");
+      }
+
+      function renderActivityGraph() {
+        const graphEl = document.getElementById("activityGraph");
+        const totalReadsEl = document.getElementById("totalReadsText");
+        graphEl.innerHTML = "";
+
+        const stats = getReadStats();
+        const totalReads = Object.values(stats).reduce(
+          (sum, count) => sum + count,
+          0
+        );
+        totalReadsEl.textContent = `${totalReads} Total`;
+
+        const today = new Date();
+        const currentDayOfWeek = today.getDay();
+        const numWeeks = 20;
+        const totalDays = numWeeks * 7 + (currentDayOfWeek + 1);
+
+        const daysArr = [];
+        for (let i = totalDays - 1; i >= 0; i--) {
+          const d = new Date();
+          d.setDate(today.getDate() - i);
+          const year = d.getFullYear();
+          const month = String(d.getMonth() + 1).padStart(2, "0");
+          const day = String(d.getDate()).padStart(2, "0");
+          daysArr.push(`${year}-${month}-${day}`);
+        }
+
+        daysArr.forEach((dateStr) => {
+          const count = stats[dateStr] || 0;
+          let colorClass = "bg-surfaceHover";
+          if (count > 0 && count <= 2) colorClass = "bg-hn/30";
+          else if (count > 2 && count <= 5) colorClass = "bg-hn/60";
+          else if (count > 5) colorClass = "bg-hn";
+
+          const cell = document.createElement("div");
+          cell.className = `w-[9px] h-[9px] rounded-[2px] transition-colors duration-300 ${colorClass}`;
+          cell.title = `${count} posts read on ${dateStr}`;
+          graphEl.appendChild(cell);
+        });
+      }
+
+      function getReadStories() {
+        return JSON.parse(localStorage.getItem("readStories") || "[]");
+      }
+
+      function markAsRead(id) {
+        const read = getReadStories();
+        if (!read.includes(id)) {
+          read.push(id);
+          localStorage.setItem("readStories", JSON.stringify(read));
+
+          const stats = getReadStats();
+          const todayDate = new Date();
+          const year = todayDate.getFullYear();
+          const month = String(todayDate.getMonth() + 1).padStart(2, "0");
+          const day = String(todayDate.getDate()).padStart(2, "0");
+          const todayStr = `${year}-${month}-${day}`;
+
+          stats[todayStr] = (stats[todayStr] || 0) + 1;
+          localStorage.setItem("readStats", JSON.stringify(stats));
+
+          renderActivityGraph();
+        }
+      }
+
+      function isRead(id) {
+        return getReadStories().includes(id);
+      }
+
+      mobileBackBtn.addEventListener("click", () => {
+        feedPane.classList.remove("hidden");
+        readerPane.classList.add("hidden");
+        readerPane.classList.replace("flex", "hidden");
+      });
+
+      loadMoreBtn.addEventListener("click", () => {
+        currentPage++;
+        loadStoriesClient(currentPage);
+      });
+
+      // 100% Client-Side Hacker News Fetching
+      async function loadStoriesClient(page = 1) {
+        if (page > 1) {
+          loadMoreBtn.textContent = "Loading...";
+          loadMoreBtn.disabled = true;
+        }
+
+        try {
+          // Client-side Top Story caching (15 mins)
+          let topIds = JSON.parse(localStorage.getItem("hn_top_ids") || "[]");
+          let lastFetch = parseInt(localStorage.getItem("hn_top_time") || "0");
+
+          if (Date.now() - lastFetch > 15 * 60 * 1000 || topIds.length === 0) {
+            const res = await fetch(
+              "https://hacker-news.firebaseio.com/v0/topstories.json"
+            );
+            topIds = await res.json();
+            localStorage.setItem("hn_top_ids", JSON.stringify(topIds));
+            localStorage.setItem("hn_top_time", Date.now().toString());
+          }
+
+          if (page === 1) {
+            statusDot.classList.add("bg-hn");
+            statusDot.classList.remove("animate-pulse");
+          }
+
+          const limit = 15;
+          const pageIds = topIds.slice((page - 1) * limit, page * limit);
+
+          // Fetch individual story details
+          const storyPromises = pageIds.map((id) =>
+            fetch(`https://hacker-news.firebaseio.com/v0/item/${id}.json`).then(
+              (r) => r.json()
+            )
+          );
+          const stories = await Promise.all(storyPromises);
+
+          stories.forEach((story, i) => {
+            if (!story) return;
+
+            const card = document.createElement("div");
+            card.style.animationDelay = `${i * 20}ms`;
+            card.id = `card-${story.id}`;
+
+            const readClass = isRead(story.id) ? "is-read" : "";
+            const activeClass = activeCardId === story.id ? "is-active" : "";
+
+            card.className = `story-card bg-surface border border-borderSubtle p-4 rounded-xl hover:bg-surfaceHover hover:border-borderHover cursor-pointer flex flex-col justify-between group animate-fade-in opacity-0 shadow-sm ${readClass} ${activeClass}`;
+
+            const domain = story.url
+              ? new URL(story.url).hostname.replace("www.", "")
+              : "news.ycombinator.com";
+            const relativeTime = timeAgo(story.time);
+
+            let scoreColor = "text-textMuted";
+            let scoreBg = "bg-appBg";
+            let scoreBorder = "border-borderSubtle";
+            if (story.score > 500) {
+              scoreColor = "text-hn";
+              scoreBg = "bg-hn/10";
+              scoreBorder = "border-hn/20";
+            } else if (story.score > 100) {
+              scoreColor = "text-amber-500";
+              scoreBg = "bg-amber-500/10";
+              scoreBorder = "border-amber-500/20";
+            }
+
+            const commentCount = story.descendants || 0;
+
+            // NEW: Added Comments count to the card
+            card.innerHTML = `
+                        <div class="flex justify-between items-start mb-3">
+                            <h3 class="font-medium text-[14px] leading-snug text-textMain group-hover:text-white transition-colors pr-2">${
+                              story.title
+                            }</h3>
+                            <div class="check-icon ${
+                              isRead(story.id) ? "block" : "hidden"
+                            } shrink-0 mt-0.5">
+                                <svg class="w-4 h-4 text-hn" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between pt-3 border-t border-borderSubtle/50">
+                            <div class="flex gap-2">
+                                <span class="inline-flex items-center text-[10px] font-mono ${scoreColor} ${scoreBg} px-2 py-0.5 rounded border ${scoreBorder}">
+                                    <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path></svg>
+                                    ${story.score} pts
+                                </span>
+                                <span class="inline-flex items-center text-[10px] font-mono text-textMuted bg-appBg px-2 py-0.5 rounded border border-borderSubtle">
+                                    <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>
+                                    ${commentCount}
+                                </span>
+                            </div>
+                            <div class="flex items-center gap-2 text-[10px] font-mono text-textMuted">
+                                <span class="truncate max-w-[80px]">${domain}</span>
+                                <span class="w-1 h-1 rounded-full bg-borderHover"></span>
+                                <span>${relativeTime}</span>
+                            </div>
+                        </div>
+                    `;
+
+            card.addEventListener("click", () => handleCardClick(story, card));
+            feedList.appendChild(card);
+          });
+
+          if (page * limit < topIds.length) {
+            loadMoreBtn.classList.remove("hidden");
+          } else {
+            loadMoreBtn.classList.add("hidden");
+          }
+        } catch (err) {
+          if (page === 1) statusDot.classList.replace("bg-hn", "bg-red-500");
+        } finally {
+          if (page > 1) {
+            loadMoreBtn.textContent = "Load More";
+            loadMoreBtn.disabled = false;
+          }
+        }
+      }
+
+      // 100% Client-Side Summary Logic
+      async function handleCardClick(story, cardElement) {
+        const apiKey = localStorage.getItem("openai_api_key");
+        if (!apiKey) {
+          openSettingsBtn.click();
+          return;
+        }
+
+        if (activeCardId) {
+          const oldCard = document.getElementById(`card-${activeCardId}`);
+          if (oldCard) oldCard.classList.remove("is-active");
+        }
+        activeCardId = story.id;
+        currentActiveStory = story;
+
+        cardElement.classList.add("is-active", "is-read");
+        cardElement
+          .querySelector(".check-icon")
+          .classList.replace("hidden", "block");
+
+        markAsRead(story.id);
+
+        if (window.innerWidth < 768) {
+          feedPane.classList.add("hidden");
+          readerPane.classList.remove("hidden");
+          readerPane.classList.add("flex");
+        }
+
+        emptyState.classList.add("hidden");
+        readerContent.classList.remove("hidden");
+        readerContent.classList.add("flex");
+
+        readerTitle.textContent = story.title;
+        readerBody.innerHTML = "";
+
+        // Source Link
+        if (story.url) {
+          readerLink.href = story.url;
+          readerLink.classList.remove("hidden");
+        } else {
+          readerLink.classList.add("hidden");
+        }
+
+        // HN Comments Link
+        readerHnLink.href = `https://news.ycombinator.com/item?id=${story.id}`;
+        readerHnLink.classList.remove("hidden");
+
+        readerContent.scrollTop = 0;
+
+        const localCacheKey = `summary_${story.id}_${currentLang}`;
+        const browserCachedSummary = localStorage.getItem(localCacheKey);
+
+        if (browserCachedSummary) {
+          readerStatus.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-hn"></span> Loaded from browser (${currentLang.toUpperCase()})`;
+          readerBody.innerHTML = marked.parse(browserCachedSummary);
+          return;
+        }
+
+        readerStatus.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-neutral-500 animate-pulse"></span> Fetching and analyzing...`;
+
+        try {
+          let contentToSummarize = story.title;
+
+          // Client-side HTML extraction using a free public CORS proxy
+          if (story.url) {
+            try {
+              const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(
+                story.url
+              )}`;
+              const pageRes = await fetch(proxyUrl);
+              const proxyData = await pageRes.json();
+
+              if (proxyData.contents) {
+                const cleanText = proxyData.contents
+                  .replace(
+                    /<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi,
+                    ""
+                  )
+                  .replace(
+                    /<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi,
+                    ""
+                  )
+                  .replace(/<(?!img|iframe|\/iframe)[^>]+>/gi, " ")
+                  .replace(/\s+/g, " ")
+                  .substring(0, 15000);
+                contentToSummarize = `Title: ${story.title}\nContent: ${cleanText}`;
+              }
+            } catch (e) {
+              contentToSummarize = `Title: ${story.title}\n(Could not fetch page content, summarize based on title).`;
+            }
+          } else if (story.text) {
+            contentToSummarize = `Title: ${story.title}\nContent: ${story.text}`;
+          }
+
+          const systemPrompt = `You are an expert technical summarizer. Provide a detailed, insightful summary of the text using formatting (bullet points, bold text). 
+                CRITICAL INSTRUCTION 1: You MUST translate and write your entire response in the language corresponding to the ISO code '${currentLang}'. 
+                CRITICAL INSTRUCTION 2: If the source text contains important <img> or <iframe> tags (like YouTube videos or relevant charts), you SHOULD include them in your summary so the user can see them.`;
+
+          // Direct call to OpenAI from the browser using the user's key
+          const aiRes = await fetch(
+            "https://api.openai.com/v1/chat/completions",
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${apiKey}`,
+              },
+              body: JSON.stringify({
+                model: "gpt-4o-mini",
+                messages: [
+                  { role: "system", content: systemPrompt },
+                  { role: "user", content: contentToSummarize },
+                ],
+                temperature: 0.5,
+              }),
+            }
+          );
+
+          const aiData = await aiRes.json();
+          if (aiData.error) throw new Error(aiData.error.message);
+
+          const summary = aiData.choices[0].message.content;
+
+          readerStatus.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-green-500"></span> Generated live (${currentLang.toUpperCase()})`;
+          readerBody.innerHTML = marked.parse(summary);
+
+          try {
+            localStorage.setItem(localCacheKey, summary);
+          } catch (e) {
+            console.warn("Local storage full, skipping browser cache.");
+          }
+        } catch (err) {
+          console.error(err);
+          readerStatus.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-red-500"></span> Generation failed. Check API Key.`;
+        }
+      }
+
+      renderActivityGraph();
+      loadStoriesClient();
+    </script>
+  </body>
+</html>
