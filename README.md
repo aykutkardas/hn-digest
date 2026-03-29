@@ -2,6 +2,8 @@
 
 A small web app that lists [Hacker News](https://news.ycombinator.com/) top stories and generates AI summaries (with optional translation) using the OpenAI API. The backend is Express; the UI is static files under `public/`.
 
+![hn-digest preview](preview.png)
+
 ## Requirements
 
 - [Node.js](https://nodejs.org/) 18 or newer (uses built-in `fetch`)
