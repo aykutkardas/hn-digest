@@ -1,4 +1,7 @@
 const LIST_CACHE_TTL = 15 * 60 * 1000;
+const SUMMARY_CACHE_MAX = 400;
+const PAGE_FETCH_TIMEOUT_MS = 8000;
+
 let topStoryIdsCache = { time: 0, ids: [] };
 const summaryCache = new Map();
 
@@ -28,6 +31,48 @@ function openAiKeyFromRequest(request) {
   return (request.headers.get("x-openai-key") || "").trim();
 }
 
+/** Block obvious SSRF targets when summarizing arbitrary story URLs. */
+function isPublicHttpUrlForFetch(urlString) {
+  try {
+    const u = new URL(urlString);
+    if (u.username || u.password) return false;
+    if (u.protocol !== "http:" && u.protocol !== "https:") return false;
+    const host = u.hostname.toLowerCase();
+    if (
+      host === "localhost" ||
+      host === "0.0.0.0" ||
+      host === "[::1]" ||
+      host.endsWith(".localhost") ||
+      host.endsWith(".local")
+    ) {
+      return false;
+    }
+    const ipv4 = /^(?:\d{1,3}\.){3}\d{1,3}$/;
+    if (ipv4.test(host)) {
+      const p = host.split(".").map((x) => parseInt(x, 10));
+      if (p.some((n) => n > 255)) return false;
+      if (p[0] === 10) return false;
+      if (p[0] === 127) return false;
+      if (p[0] === 0) return false;
+      if (p[0] === 192 && p[1] === 168) return false;
+      if (p[0] === 169 && p[1] === 254) return false;
+      if (p[0] === 100 && p[1] >= 64 && p[1] <= 127) return false;
+      if (p[0] === 172 && p[1] >= 16 && p[1] <= 31) return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function summaryCacheSet(key, value) {
+  if (summaryCache.size >= SUMMARY_CACHE_MAX && !summaryCache.has(key)) {
+    const first = summaryCache.keys().next().value;
+    summaryCache.delete(first);
+  }
+  summaryCache.set(key, value);
+}
+
 async function handleStories(url) {
   try {
     const page = parseInt(url.searchParams.get("page") || "1", 10) || 1;
@@ -44,13 +89,16 @@ async function handleStories(url) {
         "https://hacker-news.firebaseio.com/v0/topstories.json"
       );
       topIds = await hnRes.json();
+      if (!Array.isArray(topIds)) {
+        throw new Error("Invalid HN list response");
+      }
       topStoryIdsCache = { time: Date.now(), ids: topIds };
     }
 
     const pageIds = topIds.slice(startIndex, endIndex);
     const storyPromises = pageIds.map((id) =>
-      fetch(`https://hacker-news.firebaseio.com/v0/item/${id}.json`).then((r) =>
-        r.json()
+      fetch(`https://hacker-news.firebaseio.com/v0/item/${id}.json`).then(
+        (r) => r.json()
       )
     );
     const stories = await Promise.all(storyPromises);
@@ -66,10 +114,10 @@ async function handleStories(url) {
 
 async function handleSummarize(request, url, env) {
   const storyId = url.searchParams.get("id");
-  const lang = url.searchParams.get("lang") || "en";
+  const lang = (url.searchParams.get("lang") || "en").slice(0, 12);
 
-  if (!storyId) {
-    return json({ error: "Missing story ID" }, 400);
+  if (!storyId || !/^\d+$/.test(storyId)) {
+    return json({ error: "Missing or invalid story ID" }, 400);
   }
 
   const cacheKey = `${storyId}_${lang}`;
@@ -101,12 +149,13 @@ async function handleSummarize(request, url, env) {
     let contentToSummarize = story.title;
 
     if (story.url) {
-      try {
+      if (isPublicHttpUrlForFetch(story.url)) {
         const controller = new AbortController();
-        const t = setTimeout(() => controller.abort(), 5000);
+        const t = setTimeout(() => controller.abort(), PAGE_FETCH_TIMEOUT_MS);
         try {
           const pageRes = await fetch(story.url, {
             signal: controller.signal,
+            redirect: "follow",
           });
           const html = await pageRes.text();
 
@@ -118,11 +167,13 @@ async function handleSummarize(request, url, env) {
             .substring(0, 15000);
 
           contentToSummarize = `Title: ${story.title}\nContent: ${cleanText}`;
+        } catch {
+          contentToSummarize = `Title: ${story.title}\n(Could not fetch page content, summarize based on title).`;
         } finally {
           clearTimeout(t);
         }
-      } catch {
-        contentToSummarize = `Title: ${story.title}\n(Could not fetch page content, summarize based on title).`;
+      } else {
+        contentToSummarize = `Title: ${story.title}\n(URL not fetched for security; summarize from title and context).`;
       }
     } else if (story.text) {
       contentToSummarize = `Title: ${story.title}\nContent: ${story.text}`;
@@ -163,11 +214,11 @@ Output requirements:
     }
 
     const summary = aiData.choices[0].message.content;
-    summaryCache.set(cacheKey, summary);
+    summaryCacheSet(cacheKey, summary);
 
     return json({ summary, cached: false });
   } catch (error) {
-    console.error("Summary Error:", error);
+    console.error("summarize:", error);
     const message =
       error instanceof Error ? error.message : "Failed to generate summary.";
     return json({ error: message }, 500);
@@ -175,7 +226,7 @@ Output requirements:
 }
 
 export default {
-  async fetch(request, env, ctx) {
+  async fetch(request, env) {
     if (request.method === "OPTIONS") {
       return new Response(null, { status: 204, headers: corsHeaders() });
     }

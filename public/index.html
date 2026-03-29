@@ -3,11 +3,16 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Hacker News top stories with AI summaries and inline threads."
+    />
     <title>HN Daily Digest</title>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
 
     <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.4/dist/purify.min.js"></script>
 
     <script>
       tailwind.config = {
@@ -128,7 +133,8 @@
       }
 
       .story-card {
-        transition: all 0.2s ease-in-out;
+        transition: background-color 0.2s ease, border-color 0.2s ease,
+          opacity 0.2s ease, box-shadow 0.2s ease;
       }
       /* Angular-style ~33.7° hatch: repeated “trace” bands, lighter than solid orange wash */
       .story-card.is-read {
@@ -652,16 +658,20 @@
 
     <dialog
       id="settingsModal"
+      aria-labelledby="settingsModalTitle"
       class="bg-surface border border-borderSubtle rounded-2xl p-8 max-w-md w-[90vw] mx-auto shadow-2xl relative text-left"
     >
       <button
         id="closeSettingsBtn"
         type="button"
         class="absolute top-5 right-5 text-textMuted hover:text-white"
+        aria-label="Close settings"
       >
         &times;
       </button>
-      <h2 class="text-xl font-medium text-white mb-2">API key</h2>
+      <h2 id="settingsModalTitle" class="text-xl font-medium text-white mb-2">
+        API key
+      </h2>
       <p class="text-sm text-textMuted mb-6">
         Your OpenAI key is saved in this browser only. It is sent to this app’s
         server in the Authorization header when you request a summary.
@@ -694,13 +704,120 @@
     </dialog>
 
     <script>
+      const FEED_PAGE_SIZE = 15;
+      const LS_READ_STATS = "readStats";
+      const LS_READ_STORIES = "readStories";
+      const LS_TOP_IDS = "hn_top_ids";
+      const LS_TOP_TIME = "hn_top_time";
+      const LS_PREF_LANG = "preferredLang";
+      const LS_OPENAI_KEY = "openai_api_key";
+
       const SUPPORTED_LANGUAGES = [
         { code: "en", name: "ENG" },
         { code: "tr", name: "TR" },
         { code: "es", name: "ES" },
       ];
 
-      let currentLang = localStorage.getItem("preferredLang") || "en";
+      function escapeHtml(s) {
+        return String(s)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;");
+      }
+
+      function safeJsonParse(raw, fallback) {
+        try {
+          return JSON.parse(raw);
+        } catch {
+          return fallback;
+        }
+      }
+
+      const MD_SANITIZE = {
+        ALLOWED_TAGS: [
+          "p",
+          "br",
+          "strong",
+          "em",
+          "b",
+          "i",
+          "del",
+          "h1",
+          "h2",
+          "h3",
+          "h4",
+          "h5",
+          "h6",
+          "ul",
+          "ol",
+          "li",
+          "blockquote",
+          "code",
+          "pre",
+          "a",
+          "img",
+          "iframe",
+          "hr",
+          "table",
+          "thead",
+          "tbody",
+          "tr",
+          "th",
+          "td",
+          "span",
+        ],
+        ALLOWED_ATTR: [
+          "href",
+          "src",
+          "alt",
+          "title",
+          "class",
+          "target",
+          "rel",
+          "width",
+          "height",
+          "frameborder",
+          "allow",
+          "allowfullscreen",
+          "loading",
+        ],
+      };
+
+      const COMMENT_SANITIZE = {
+        ALLOWED_TAGS: [
+          "p",
+          "br",
+          "i",
+          "em",
+          "b",
+          "strong",
+          "code",
+          "pre",
+          "a",
+          "span",
+          "div",
+        ],
+        ALLOWED_ATTR: ["href", "rel", "target", "class"],
+      };
+
+      function markdownToSafeHtml(md) {
+        const raw = marked.parse(String(md ?? ""));
+        if (typeof DOMPurify !== "undefined" && DOMPurify.sanitize) {
+          return DOMPurify.sanitize(raw, MD_SANITIZE);
+        }
+        return raw;
+      }
+
+      function hnCommentHtmlSafe(html) {
+        const s = String(html ?? "");
+        if (typeof DOMPurify !== "undefined" && DOMPurify.sanitize) {
+          return DOMPurify.sanitize(s, COMMENT_SANITIZE);
+        }
+        return escapeHtml(s.replace(/<[^>]+>/g, ""));
+      }
+
+      let currentLang = localStorage.getItem(LS_PREF_LANG) || "en";
       let activeCardId = null;
       let currentActiveStory = null;
 
@@ -712,14 +829,14 @@
       const apiKeyInput = document.getElementById("apiKeyInput");
 
       openSettingsBtn.addEventListener("click", () => {
-        apiKeyInput.value = localStorage.getItem("openai_api_key") || "";
+        apiKeyInput.value = localStorage.getItem(LS_OPENAI_KEY) || "";
         settingsModal.showModal();
       });
       closeSettingsBtn.addEventListener("click", () => settingsModal.close());
 
       saveKeyBtn.addEventListener("click", () => {
         if (apiKeyInput.value.trim()) {
-          localStorage.setItem("openai_api_key", apiKeyInput.value.trim());
+          localStorage.setItem(LS_OPENAI_KEY, apiKeyInput.value.trim());
           settingsModal.close();
           if (currentActiveStory && activeCardId) {
             handleCardClick(
@@ -731,11 +848,10 @@
       });
 
       clearKeyBtn.addEventListener("click", () => {
-        localStorage.removeItem("openai_api_key");
+        localStorage.removeItem(LS_OPENAI_KEY);
         apiKeyInput.value = "";
       });
 
-      // Language Selector Logic
       const langSelect = document.getElementById("langSelect");
       SUPPORTED_LANGUAGES.forEach((lang) => {
         const option = document.createElement("option");
@@ -747,7 +863,7 @@
 
       langSelect.addEventListener("change", (e) => {
         currentLang = e.target.value;
-        localStorage.setItem("preferredLang", currentLang);
+        localStorage.setItem(LS_PREF_LANG, currentLang);
         if (currentActiveStory && activeCardId) {
           const currentCard = document.getElementById(`card-${activeCardId}`);
           handleCardClick(currentActiveStory, currentCard);
@@ -776,6 +892,7 @@
       );
       const mobileBackBtn = document.getElementById("mobileBackBtn");
       const statusTextEl = document.getElementById("statusText");
+      const activityGraph = document.getElementById("activityGraph");
 
       const SPINNER_SVG = `<svg class="animate-spin h-3.5 w-3.5 text-hn shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true"><circle class="opacity-20" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-80" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>`;
 
@@ -800,7 +917,7 @@
       }
 
       function readerSummarySkeletonHTML() {
-        return `<div class="w-full space-y-3 animate-fade-in opacity-0" style="animation-delay:0ms">
+        return `<div class="w-full space-y-3 animate-fade-in opacity-0">
           <div class="ui-skeleton h-4 rounded-md" style="width:88%"></div>
           <div class="ui-skeleton h-4 rounded-md w-full"></div>
           <div class="ui-skeleton h-4 rounded-md" style="width:94%"></div>
@@ -868,13 +985,13 @@
       }
 
       function getReadStats() {
-        return JSON.parse(localStorage.getItem("readStats") || "{}");
+        const o = safeJsonParse(localStorage.getItem(LS_READ_STATS) || "{}", {});
+        return o && typeof o === "object" && !Array.isArray(o) ? o : {};
       }
 
       function renderActivityGraph() {
-        const graphEl = document.getElementById("activityGraph");
         const totalReadsEl = document.getElementById("totalReadsText");
-        graphEl.innerHTML = "";
+        activityGraph.innerHTML = "";
 
         const stats = getReadStats();
         const totalReads = Object.values(stats).reduce(
@@ -908,19 +1025,24 @@
           const cell = document.createElement("div");
           cell.className = `w-[9px] h-[9px] rounded-[2px] transition-colors duration-300 ${colorClass}`;
           cell.title = `${count} posts read on ${dateStr}`;
-          graphEl.appendChild(cell);
+          activityGraph.appendChild(cell);
         });
       }
 
       function getReadStories() {
-        return JSON.parse(localStorage.getItem("readStories") || "[]");
+        const a = safeJsonParse(
+          localStorage.getItem(LS_READ_STORIES) || "[]",
+          []
+        );
+        return Array.isArray(a) ? a : [];
       }
 
       function markAsRead(id) {
         const read = getReadStories();
-        if (!read.includes(id)) {
-          read.push(id);
-          localStorage.setItem("readStories", JSON.stringify(read));
+        const n = Number(id);
+        if (!read.some((x) => Number(x) === n)) {
+          read.push(n);
+          localStorage.setItem(LS_READ_STORIES, JSON.stringify(read));
 
           const stats = getReadStats();
           const todayDate = new Date();
@@ -930,14 +1052,15 @@
           const todayStr = `${year}-${month}-${day}`;
 
           stats[todayStr] = (stats[todayStr] || 0) + 1;
-          localStorage.setItem("readStats", JSON.stringify(stats));
+          localStorage.setItem(LS_READ_STATS, JSON.stringify(stats));
 
           renderActivityGraph();
         }
       }
 
       function isRead(id) {
-        return getReadStories().includes(id);
+        const n = Number(id);
+        return getReadStories().some((x) => Number(x) === n);
       }
 
       function applyReadState(story, cardElement) {
@@ -1121,7 +1244,9 @@
 
         const body = document.createElement("div");
         body.className = "hn-comment-body";
-        body.innerHTML = item.text || (item.dead ? "[dead]" : "");
+        body.innerHTML = hnCommentHtmlSafe(
+          item.text || (item.dead ? "[dead]" : "")
+        );
         applyBlankTargets(body);
 
         inner.appendChild(meta);
@@ -1268,7 +1393,7 @@
         closeCommentsPanel(false);
         feedPane.classList.remove("hidden");
         readerPane.classList.add("hidden");
-        readerPane.classList.replace("flex", "hidden");
+        readerPane.classList.remove("flex");
       });
 
       loadMoreBtn.addEventListener("click", () => {
@@ -1276,7 +1401,6 @@
         loadStoriesClient(currentPage);
       });
 
-      // 100% Client-Side Hacker News Fetching
       async function loadStoriesClient(page = 1) {
         if (page > 1) {
           loadMoreBtn.disabled = true;
@@ -1295,23 +1419,24 @@
         }
 
         try {
-          // Client-side Top Story caching (15 mins)
-          let topIds = JSON.parse(localStorage.getItem("hn_top_ids") || "[]");
-          let lastFetch = parseInt(localStorage.getItem("hn_top_time") || "0");
+          let topIds = safeJsonParse(localStorage.getItem(LS_TOP_IDS) || "[]", []);
+          if (!Array.isArray(topIds)) topIds = [];
+          let lastFetch = parseInt(localStorage.getItem(LS_TOP_TIME) || "0", 10);
 
           if (Date.now() - lastFetch > 15 * 60 * 1000 || topIds.length === 0) {
             const res = await fetch(
               "https://hacker-news.firebaseio.com/v0/topstories.json"
             );
             topIds = await res.json();
-            localStorage.setItem("hn_top_ids", JSON.stringify(topIds));
-            localStorage.setItem("hn_top_time", Date.now().toString());
+            localStorage.setItem(LS_TOP_IDS, JSON.stringify(topIds));
+            localStorage.setItem(LS_TOP_TIME, Date.now().toString());
           }
 
-          const limit = 15;
-          const pageIds = topIds.slice((page - 1) * limit, page * limit);
+          const pageIds = topIds.slice(
+            (page - 1) * FEED_PAGE_SIZE,
+            page * FEED_PAGE_SIZE
+          );
 
-          // Fetch individual story details
           const storyPromises = pageIds.map((id) =>
             fetch(`https://hacker-news.firebaseio.com/v0/item/${id}.json`).then(
               (r) => r.json()
@@ -1327,6 +1452,7 @@
               .forEach((el) => el.remove());
           }
 
+          const frag = document.createDocumentFragment();
           stories.forEach((story, i) => {
             if (!story) return;
 
@@ -1339,9 +1465,14 @@
 
             card.className = `story-card bg-surface border border-borderSubtle p-4 rounded-xl hover:bg-surfaceHover hover:border-borderHover cursor-pointer flex flex-col justify-between group animate-fade-in opacity-0 shadow-sm ${readClass} ${activeClass}`;
 
-            const domain = story.url
-              ? new URL(story.url).hostname.replace("www.", "")
-              : "news.ycombinator.com";
+            let domain = "news.ycombinator.com";
+            if (story.url) {
+              try {
+                domain = new URL(story.url).hostname.replace(/^www\./, "");
+              } catch {
+                domain = "link";
+              }
+            }
             const relativeTime = timeAgo(story.time);
 
             let scoreColor = "text-textMuted";
@@ -1358,13 +1489,11 @@
             }
 
             const commentCount = story.descendants || 0;
+            const titleSafe = escapeHtml(story.title);
 
-            // NEW: Added Comments count to the card
             card.innerHTML = `
                         <div class="flex justify-between items-start mb-3">
-                            <h3 class="font-medium text-[14px] leading-snug text-textMain group-hover:text-white transition-colors pr-2">${
-                              story.title
-                            }</h3>
+                            <h3 class="font-medium text-[14px] leading-snug text-textMain group-hover:text-white transition-colors pr-2">${titleSafe}</h3>
                             <div class="check-icon ${
                               isRead(story.id) ? "block" : "hidden"
                             } shrink-0 mt-0.5">
@@ -1383,7 +1512,9 @@
                                 </span>
                             </div>
                             <div class="flex items-center gap-2 text-[10px] font-mono text-textMuted">
-                                <span class="truncate max-w-[80px]">${domain}</span>
+                                <span class="truncate max-w-[80px]">${escapeHtml(
+                                  domain
+                                )}</span>
                                 <span class="w-1 h-1 rounded-full bg-borderHover"></span>
                                 <span>${relativeTime}</span>
                             </div>
@@ -1391,10 +1522,11 @@
                     `;
 
             card.addEventListener("click", () => handleCardClick(story, card));
-            feedList.appendChild(card);
+            frag.appendChild(card);
           });
+          feedList.appendChild(frag);
 
-          if (page * limit < topIds.length) {
+          if (page * FEED_PAGE_SIZE < topIds.length) {
             loadMoreBtn.classList.remove("hidden");
           } else {
             loadMoreBtn.classList.add("hidden");
@@ -1474,7 +1606,7 @@
 
         if (browserCachedSummary) {
           readerStatus.innerHTML = `<span class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-hn shrink-0"></span><span class="uppercase tracking-wider">Loaded from browser (${currentLang.toUpperCase()})</span></span>`;
-          readerBody.innerHTML = marked.parse(browserCachedSummary);
+          readerBody.innerHTML = markdownToSafeHtml(browserCachedSummary);
           applyBlankTargets(readerBody);
           void readerBody.offsetWidth;
           readerBody.classList.add("animate-reader-in");
@@ -1487,7 +1619,7 @@
         readerStatus.innerHTML = `<span class="flex items-center gap-2">${SPINNER_SVG}<span class="uppercase tracking-wider">Generating summary</span></span>`;
 
         try {
-          const apiKey = (localStorage.getItem("openai_api_key") || "").trim();
+          const apiKey = (localStorage.getItem(LS_OPENAI_KEY) || "").trim();
           const headers = {};
           if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
 
@@ -1517,7 +1649,7 @@
           const dotClass = data.cached ? "bg-hn" : "bg-green-500";
           readerStatus.innerHTML = `<span class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full ${dotClass} shrink-0"></span><span class="uppercase tracking-wider">${statusLabel}</span></span>`;
           readerBody.classList.remove("opacity-50");
-          readerBody.innerHTML = marked.parse(summary);
+          readerBody.innerHTML = markdownToSafeHtml(summary);
           applyBlankTargets(readerBody);
           void readerBody.offsetWidth;
           readerBody.classList.add("animate-reader-in");
