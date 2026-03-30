@@ -1473,9 +1473,7 @@
 
         const body = document.createElement("div");
         body.className = "hn-comment-body";
-        body.innerHTML = hnCommentHtmlSafe(
-          item.text || (item.dead ? "[dead]" : "")
-        );
+        body.innerHTML = hnCommentHtmlSafe(item.text || "");
         applyBlankTargets(body);
 
         inner.appendChild(meta);
@@ -1537,6 +1535,12 @@
             for (const item of items) {
               if (state.fetched >= MAX_FETCH) break;
               if (!item || item.type !== "comment" || item.deleted) continue;
+              if (item.dead) {
+                if (item.kids?.length) {
+                  await walk(item.kids, depth + 1, parentEl);
+                }
+                continue;
+              }
               state.fetched++;
               const { block, replies } = hnCommentBlock(item, depth);
               parentEl.appendChild(block);
