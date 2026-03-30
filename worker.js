@@ -2,7 +2,10 @@ const LIST_CACHE_TTL = 15 * 60 * 1000;
 const SUMMARY_CACHE_MAX = 400;
 const PAGE_FETCH_TIMEOUT_MS = 8000;
 
-let topStoryIdsCache = { time: 0, ids: [] };
+const listIdCaches = {
+  top: { time: 0, ids: [] },
+  new: { time: 0, ids: [] },
+};
 const summaryCache = new Map();
 
 function corsHeaders() {
@@ -75,24 +78,30 @@ function summaryCacheSet(key, value) {
 
 async function handleStories(url) {
   try {
+    const feed = url.searchParams.get("feed") === "new" ? "new" : "top";
+    const hnListUrl =
+      feed === "new"
+        ? "https://hacker-news.firebaseio.com/v0/newstories.json"
+        : "https://hacker-news.firebaseio.com/v0/topstories.json";
+
     const page = parseInt(url.searchParams.get("page") || "1", 10) || 1;
     const limit = 15;
     const startIndex = (page - 1) * limit;
     const endIndex = page * limit;
 
-    let topIds = topStoryIdsCache.ids;
+    let cache = listIdCaches[feed];
+    let topIds = cache.ids;
     if (
-      Date.now() - topStoryIdsCache.time > LIST_CACHE_TTL ||
+      Date.now() - cache.time > LIST_CACHE_TTL ||
       topIds.length === 0
     ) {
-      const hnRes = await fetch(
-        "https://hacker-news.firebaseio.com/v0/topstories.json"
-      );
+      const hnRes = await fetch(hnListUrl);
       topIds = await hnRes.json();
       if (!Array.isArray(topIds)) {
         throw new Error("Invalid HN list response");
       }
-      topStoryIdsCache = { time: Date.now(), ids: topIds };
+      cache = { time: Date.now(), ids: topIds };
+      listIdCaches[feed] = cache;
     }
 
     const pageIds = topIds.slice(startIndex, endIndex);
@@ -106,6 +115,7 @@ async function handleStories(url) {
     return json({
       stories,
       hasMore: endIndex < topIds.length,
+      feed,
     });
   } catch {
     return json({ error: "Failed to fetch stories" }, 500);

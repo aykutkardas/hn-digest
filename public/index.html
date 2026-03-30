@@ -173,6 +173,18 @@
         display: none !important;
       }
 
+      .feed-kind-btn {
+        color: #a1a1aa;
+      }
+      .feed-kind-btn:hover {
+        color: #e4e4e7;
+      }
+      .feed-kind-btn.feed-kind-active {
+        background-color: #27272a;
+        color: #e4e4e7;
+        box-shadow: 0 1px 0 rgba(0, 0, 0, 0.2);
+      }
+
       select {
         -webkit-appearance: none;
         -moz-appearance: none;
@@ -504,6 +516,35 @@
         </nav>
 
         <div
+          class="flex items-center gap-2 mt-3 pt-3 border-t border-borderSubtle"
+          role="group"
+          aria-label="Hacker News feed"
+        >
+          <span
+            class="text-[10px] text-textMuted font-mono uppercase tracking-wider shrink-0 w-9"
+            >Feed</span
+          >
+          <div
+            class="flex flex-1 min-w-0 rounded-lg border border-borderSubtle bg-appBg p-0.5 gap-0.5"
+          >
+            <button
+              id="feedKindTop"
+              type="button"
+              class="feed-kind-btn flex-1 min-w-0 py-1.5 text-[10px] font-mono rounded-md transition-colors"
+            >
+              Top
+            </button>
+            <button
+              id="feedKindNew"
+              type="button"
+              class="feed-kind-btn flex-1 min-w-0 py-1.5 text-[10px] font-mono rounded-md transition-colors"
+            >
+              New
+            </button>
+          </div>
+        </div>
+
+        <div
           class="flex items-center justify-between mt-3 py-2 border-t border-borderSubtle"
         >
           <span class="text-xs text-textMuted font-medium"
@@ -764,6 +805,9 @@
       const LS_READ_STORIES = "readStories";
       const LS_TOP_IDS = "hn_top_ids";
       const LS_TOP_TIME = "hn_top_time";
+      const LS_NEW_IDS = "hn_new_ids";
+      const LS_NEW_TIME = "hn_new_time";
+      const LS_FEED_KIND = "hn_digest_feed_kind";
       const LS_PREF_LANG = "preferredLang";
       const LS_OPENAI_KEY = "openai_api_key";
 
@@ -875,6 +919,10 @@
       let currentLang = localStorage.getItem(LS_PREF_LANG) || "en";
       let activeCardId = null;
       let currentActiveStory = null;
+      let currentPage = 1;
+      let hideReadActive = false;
+      let feedKind =
+        localStorage.getItem(LS_FEED_KIND) === "new" ? "new" : "top";
 
       const settingsModal = document.getElementById("settingsModal");
       const openSettingsBtn = document.getElementById("openSettingsBtn");
@@ -948,6 +996,61 @@
       const mobileBackBtn = document.getElementById("mobileBackBtn");
       const statusTextEl = document.getElementById("statusText");
       const activityGraph = document.getElementById("activityGraph");
+      const feedKindTop = document.getElementById("feedKindTop");
+      const feedKindNew = document.getElementById("feedKindNew");
+
+      function getFeedStorageKeys() {
+        return feedKind === "new"
+          ? { ids: LS_NEW_IDS, time: LS_NEW_TIME }
+          : { ids: LS_TOP_IDS, time: LS_TOP_TIME };
+      }
+
+      function getFeedListUrl() {
+        return feedKind === "new"
+          ? "https://hacker-news.firebaseio.com/v0/newstories.json"
+          : "https://hacker-news.firebaseio.com/v0/topstories.json";
+      }
+
+      function syncFeedKindButtons() {
+        feedKindTop.classList.toggle("feed-kind-active", feedKind === "top");
+        feedKindNew.classList.toggle("feed-kind-active", feedKind === "new");
+        feedKindTop.setAttribute("aria-pressed", feedKind === "top" ? "true" : "false");
+        feedKindNew.setAttribute("aria-pressed", feedKind === "new" ? "true" : "false");
+      }
+
+      function resetReaderForFeedSwitch() {
+        activeCardId = null;
+        currentActiveStory = null;
+        feedList.querySelectorAll(".story-card.is-active").forEach((el) => {
+          el.classList.remove("is-active");
+        });
+        emptyState.classList.remove("hidden");
+        readerWorkspace.classList.add("hidden");
+        readerWorkspace.classList.remove("flex");
+        readerContent.classList.add("hidden");
+        readerContent.classList.remove("flex", "flex-col");
+        closeCommentsPanel(false);
+      }
+
+      function setFeedKind(kind) {
+        const next = kind === "new" ? "new" : "top";
+        if (next === feedKind) return;
+        feedKind = next;
+        localStorage.setItem(LS_FEED_KIND, feedKind);
+        currentPage = 1;
+        syncFeedKindButtons();
+        resetReaderForFeedSwitch();
+        if (window.innerWidth < 768) {
+          feedPane.classList.remove("hidden");
+          readerPane.classList.add("hidden");
+          readerPane.classList.remove("flex");
+        }
+        loadStoriesClient(1);
+      }
+
+      feedKindTop.addEventListener("click", () => setFeedKind("top"));
+      feedKindNew.addEventListener("click", () => setFeedKind("new"));
+      syncFeedKindButtons();
 
       const SPINNER_SVG = `<svg class="animate-spin h-3.5 w-3.5 text-hn shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true"><circle class="opacity-20" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-80" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>`;
 
@@ -1001,9 +1104,6 @@
           </div>
         </div>`;
       }
-
-      let currentPage = 1;
-      let hideReadActive = false;
 
       const hideReadToggle = document.getElementById("hideReadToggle");
       const toggleKnob = document.getElementById("toggleKnob");
@@ -1552,23 +1652,16 @@
         }
 
         try {
-          let topIds = safeJsonParse(
-            localStorage.getItem(LS_TOP_IDS) || "[]",
-            []
-          );
+          const { ids: idsKey, time: timeKey } = getFeedStorageKeys();
+          let topIds = safeJsonParse(localStorage.getItem(idsKey) || "[]", []);
           if (!Array.isArray(topIds)) topIds = [];
-          let lastFetch = parseInt(
-            localStorage.getItem(LS_TOP_TIME) || "0",
-            10
-          );
+          let lastFetch = parseInt(localStorage.getItem(timeKey) || "0", 10);
 
           if (Date.now() - lastFetch > 15 * 60 * 1000 || topIds.length === 0) {
-            const res = await fetch(
-              "https://hacker-news.firebaseio.com/v0/topstories.json"
-            );
+            const res = await fetch(getFeedListUrl());
             topIds = await res.json();
-            localStorage.setItem(LS_TOP_IDS, JSON.stringify(topIds));
-            localStorage.setItem(LS_TOP_TIME, Date.now().toString());
+            localStorage.setItem(idsKey, JSON.stringify(topIds));
+            localStorage.setItem(timeKey, Date.now().toString());
           }
 
           const pageIds = topIds.slice(
