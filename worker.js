@@ -1,5 +1,6 @@
 const LIST_CACHE_TTL = 15 * 60 * 1000;
 const SUMMARY_CACHE_MAX = 400;
+const EMBED_CHECK_CACHE_MAX = 600;
 const PAGE_FETCH_TIMEOUT_MS = 8000;
 
 const listIdCaches = {
@@ -7,6 +8,8 @@ const listIdCaches = {
   new: { time: 0, ids: [] },
 };
 const summaryCache = new Map();
+/** @type {Map<string, { t: number, result: { embeddable: boolean, reason: string | null } }>} */
+const embedCheckCache = new Map();
 
 function corsHeaders() {
   return {
@@ -34,7 +37,136 @@ function openAiKeyFromRequest(request) {
   return (request.headers.get("x-openai-key") || "").trim();
 }
 
-/** Block obvious SSRF targets when summarizing arbitrary story URLs. */
+/** Merge duplicate Content-Security-Policy header values from the response. */
+function combinedCspHeader(headers) {
+  const parts = [];
+  for (const [k, v] of headers) {
+    if (k.toLowerCase() === "content-security-policy") parts.push(v);
+  }
+  return parts.length ? parts.join("; ") : headers.get("Content-Security-Policy") || "";
+}
+
+function extractFrameAncestors(cspValue) {
+  if (!cspValue) return "";
+  for (const piece of cspValue.split(";")) {
+    const s = piece.trim();
+    if (/^frame-ancestors\s/i.test(s)) {
+      return s.replace(/^frame-ancestors\s+/i, "").trim();
+    }
+  }
+  return "";
+}
+
+/**
+ * Best-effort from response headers only. False negatives/positives are possible.
+ * `parentOrigin` should be the embedding page origin (e.g. https://your-app.pages.dev).
+ */
+function embeddableFromHeaders(headers, parentOrigin) {
+  const xfo = (headers.get("X-Frame-Options") || "").trim().toUpperCase();
+  if (xfo === "DENY" || xfo === "SAMEORIGIN") {
+    return { embeddable: false, reason: "x_frame_options" };
+  }
+
+  const csp = combinedCspHeader(headers);
+  const faRaw = extractFrameAncestors(csp);
+  if (!faRaw) {
+    return { embeddable: true, reason: null };
+  }
+
+  if (/\b'none'\b/i.test(faRaw)) {
+    return { embeddable: false, reason: "csp_frame_ancestors" };
+  }
+  if (/^\s*'self'\s*$/i.test(faRaw)) {
+    return { embeddable: false, reason: "csp_frame_ancestors" };
+  }
+
+  let parent = "";
+  try {
+    if (parentOrigin) parent = new URL(parentOrigin).origin;
+  } catch {
+    parent = "";
+  }
+
+  if (parent) {
+    const tokens = faRaw.match(/(?:'[^']*'|[^\s']+)/g) || [];
+    let allowed = false;
+    for (const raw of tokens) {
+      const t = raw.startsWith("'") && raw.endsWith("'") ? raw.slice(1, -1) : raw;
+      if (t === "*") {
+        allowed = true;
+        break;
+      }
+      if (t.toLowerCase() === "self") continue;
+      try {
+        const u = new URL(t);
+        if (u.origin === parent) {
+          allowed = true;
+          break;
+        }
+      } catch {
+        /* ignore malformed token */
+      }
+    }
+    if (!allowed) {
+      return { embeddable: false, reason: "csp_frame_ancestors" };
+    }
+  }
+
+  return { embeddable: true, reason: null };
+}
+
+async function handleEmbedCheck(url) {
+  const target = url.searchParams.get("url");
+  const parentOrigin = (url.searchParams.get("parent") || "").trim();
+  if (!target || !isPublicHttpUrlForFetch(target)) {
+    return json({ embeddable: false, error: "invalid_url" }, 400);
+  }
+
+  let canonical;
+  try {
+    canonical = new URL(target).href;
+  } catch {
+    return json({ embeddable: false, error: "invalid_url" }, 400);
+  }
+
+  const cacheKey = `${canonical}\0${parentOrigin}`;
+  const hit = embedCheckCache.get(cacheKey);
+  if (hit && Date.now() - hit.t < LIST_CACHE_TTL) {
+    return json({ ...hit.result, cached: true });
+  }
+
+  const controller = new AbortController();
+  const t = setTimeout(() => controller.abort(), 7000);
+  try {
+    let res = await fetch(canonical, {
+      method: "HEAD",
+      redirect: "follow",
+      signal: controller.signal,
+    });
+    if (res.status === 405 || res.status === 501) {
+      res = await fetch(canonical, {
+        method: "GET",
+        redirect: "follow",
+        signal: controller.signal,
+        headers: { Range: "bytes=0-0" },
+      });
+    }
+    const result = embeddableFromHeaders(res.headers, parentOrigin);
+    try {
+      if (res.body?.cancel) await res.body.cancel();
+    } catch {
+      /* ignore */
+    }
+    embedCheckCacheSet(cacheKey, { t: Date.now(), result });
+    return json({ ...result, cached: false });
+  } catch {
+    return json({ embeddable: true, reason: "check_failed" });
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+/** Block obvious SSRF targets when fetching arbitrary story URLs. */
 function isPublicHttpUrlForFetch(urlString) {
   try {
     const u = new URL(urlString);
@@ -74,6 +206,14 @@ function summaryCacheSet(key, value) {
     summaryCache.delete(first);
   }
   summaryCache.set(key, value);
+}
+
+function embedCheckCacheSet(key, entry) {
+  if (embedCheckCache.size >= EMBED_CHECK_CACHE_MAX && !embedCheckCache.has(key)) {
+    const first = embedCheckCache.keys().next().value;
+    embedCheckCache.delete(first);
+  }
+  embedCheckCache.set(key, entry);
 }
 
 async function handleStories(url) {
@@ -249,6 +389,9 @@ export default {
     }
     if (path === "/api/summarize") {
       return handleSummarize(request, url, env);
+    }
+    if (path === "/api/embed-check") {
+      return handleEmbedCheck(url);
     }
 
     return env.ASSETS.fetch(request);
