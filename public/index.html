@@ -371,6 +371,57 @@
         color: #a1a1aa;
         line-height: 1.5;
       }
+
+      /* Avoid horizontal jump when vertical scrollbar appears/disappears */
+      #readerContent {
+        scrollbar-gutter: stable;
+      }
+
+      .reader-post-slot {
+        width: 100%;
+        max-width: 42rem;
+        margin-left: auto;
+        margin-right: auto;
+      }
+      .reader-source-panel {
+        border: 1px solid #27272a;
+        border-radius: 0.75rem;
+        background: #0c0c0e;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        min-height: min(86vh, 960px);
+      }
+      .reader-source-iframe-wrap {
+        position: relative;
+        width: 100%;
+        flex: 1;
+        min-height: min(82vh, 900px);
+        background: #09090b;
+      }
+      .reader-source-iframe {
+        display: block;
+        width: 100%;
+        height: 100%;
+        min-height: min(82vh, 900px);
+        border: 0;
+        background: #09090b;
+      }
+      .reader-source-fallback {
+        padding: 0.65rem 0.85rem 0.85rem;
+        border-top: 1px solid rgba(39, 39, 42, 0.85);
+        font-size: 0.75rem;
+        line-height: 1.5;
+        color: #71717a;
+      }
+      .reader-source-fallback a {
+        color: #a1a1aa;
+        text-decoration: underline;
+        text-underline-offset: 2px;
+      }
+      .reader-source-fallback a:hover {
+        color: #ff8533;
+      }
     </style>
   </head>
   <body
@@ -672,14 +723,34 @@
                     >
                       Loading…
                     </div>
-                    <a
-                      id="readerLink"
-                      href="#"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      class="text-[13px] text-textMuted hover:text-hn underline underline-offset-4 hidden transition-colors font-medium"
-                      >Read Source ↗</a
+                    <div
+                      id="readerViewToggle"
+                      role="group"
+                      aria-label="Article view"
+                      title="Switch between summary and source (S)"
+                      class="hidden rounded-lg border border-borderSubtle bg-appBg p-0.5 gap-0.5 shrink-0"
                     >
+                      <button
+                        id="readerViewSummaryBtn"
+                        type="button"
+                        class="feed-kind-btn flex-1 min-w-0 px-2.5 py-1.5 text-[11px] font-mono rounded-md transition-colors"
+                        aria-pressed="true"
+                      >
+                        Summary
+                      </button>
+                      <button
+                        id="readerViewSourceBtn"
+                        type="button"
+                        class="feed-kind-btn flex-1 min-w-0 px-2.5 py-1.5 text-[11px] font-mono rounded-md transition-colors inline-flex items-center justify-center gap-1.5"
+                        aria-pressed="false"
+                      >
+                        <span>Source</span>
+                        <kbd
+                          class="pointer-events-none select-none rounded border border-borderSubtle/90 bg-appBg px-1 py-0.5 text-[9px] font-mono text-textMuted/55 leading-none"
+                          >S</kbd
+                        >
+                      </button>
+                    </div>
                     <button
                       id="readerHnBtn"
                       type="button"
@@ -701,9 +772,41 @@
               class="px-6 md:px-10 lg:px-16 pb-28 md:pb-32 flex flex-col items-center w-full"
             >
               <div
-                id="readerBody"
-                class="prose prose-invert w-full max-w-2xl mx-auto mt-8 md:mt-10 selection:bg-hn selection:text-white transition-opacity duration-200 ease-out"
-              ></div>
+                id="readerPostSlot"
+                class="reader-post-slot mt-8 md:mt-10 w-full"
+              >
+                <div
+                  id="readerBody"
+                  class="prose prose-invert w-full selection:bg-hn selection:text-white transition-opacity duration-200 ease-out"
+                ></div>
+
+                <div
+                  id="sourceFramePanel"
+                  class="reader-source-panel w-full hidden"
+                  hidden
+                >
+                  <div class="reader-source-iframe-wrap">
+                    <iframe
+                      id="readerSourceIframe"
+                      class="reader-source-iframe"
+                      title="Article source"
+                      loading="lazy"
+                      referrerpolicy="no-referrer-when-downgrade"
+                    ></iframe>
+                  </div>
+                  <p class="reader-source-fallback">
+                    If the page stays blank or errors, the site may block
+                    embedding.
+                    <a
+                      id="sourceOpenExternalLink"
+                      href="#"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      >Open the source in a new tab</a
+                    >.
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -983,7 +1086,18 @@
       const readerTitle = document.getElementById("readerTitle");
       const readerStatus = document.getElementById("readerStatus");
       const readerBody = document.getElementById("readerBody");
-      const readerLink = document.getElementById("readerLink");
+      const readerViewToggle = document.getElementById("readerViewToggle");
+      const readerViewSummaryBtn = document.getElementById(
+        "readerViewSummaryBtn"
+      );
+      const readerViewSourceBtn = document.getElementById(
+        "readerViewSourceBtn"
+      );
+      const sourceFramePanel = document.getElementById("sourceFramePanel");
+      const readerSourceIframe = document.getElementById("readerSourceIframe");
+      const sourceOpenExternalLink = document.getElementById(
+        "sourceOpenExternalLink"
+      );
       const readerHnBtn = document.getElementById("readerHnBtn");
       const readerWorkspace = document.getElementById("readerWorkspace");
       const commentsPane = document.getElementById("commentsPane");
@@ -1030,6 +1144,8 @@
         readerContent.classList.add("hidden");
         readerContent.classList.remove("flex", "flex-col");
         closeCommentsPanel(false);
+        closeSourcePanel(false);
+        setReaderViewToggleVisible(false);
       }
 
       function setFeedKind(kind) {
@@ -1229,6 +1345,7 @@
       }
 
       const COMMENTS_OPEN_PREF_KEY = "hn_digest_comments_open_v1";
+      const SOURCE_OPEN_PREF_KEY = "hn_digest_source_open_v1";
 
       function getCommentsOpenPreference() {
         return localStorage.getItem(COMMENTS_OPEN_PREF_KEY) === "1";
@@ -1236,6 +1353,69 @@
 
       function setCommentsOpenPreference(open) {
         localStorage.setItem(COMMENTS_OPEN_PREF_KEY, open ? "1" : "0");
+      }
+
+      function getSourceOpenPreference() {
+        return localStorage.getItem(SOURCE_OPEN_PREF_KEY) === "1";
+      }
+
+      function setSourceOpenPreference(open) {
+        localStorage.setItem(SOURCE_OPEN_PREF_KEY, open ? "1" : "0");
+      }
+
+      function setReaderViewToggleVisible(show) {
+        readerViewToggle.classList.toggle("hidden", !show);
+        readerViewToggle.classList.toggle("inline-flex", show);
+        readerViewToggle.classList.toggle("items-stretch", show);
+      }
+
+      function syncReaderViewToggleUi() {
+        const sourceOpen = !sourceFramePanel.classList.contains("hidden");
+        readerViewSummaryBtn.classList.toggle("feed-kind-active", !sourceOpen);
+        readerViewSummaryBtn.setAttribute(
+          "aria-pressed",
+          sourceOpen ? "false" : "true"
+        );
+        readerViewSourceBtn.classList.toggle("feed-kind-active", sourceOpen);
+        readerViewSourceBtn.setAttribute(
+          "aria-pressed",
+          sourceOpen ? "true" : "false"
+        );
+      }
+
+      function closeSourcePanel(persistPreference) {
+        sourceFramePanel.classList.add("hidden");
+        sourceFramePanel.setAttribute("hidden", "");
+        readerBody.classList.remove("hidden");
+        readerSourceIframe.removeAttribute("src");
+        if (persistPreference) setSourceOpenPreference(false);
+        syncReaderViewToggleUi();
+      }
+
+      function openSourcePanelForStory(story, persistPreference) {
+        if (!story?.url) return;
+        let href = "";
+        try {
+          const u = new URL(story.url);
+          if (u.protocol !== "http:" && u.protocol !== "https:") return;
+          href = u.href;
+        } catch {
+          return;
+        }
+        sourceOpenExternalLink.href = href;
+        readerBody.classList.add("hidden");
+        sourceFramePanel.classList.remove("hidden");
+        sourceFramePanel.removeAttribute("hidden");
+        readerSourceIframe.src = href;
+        if (persistPreference) setSourceOpenPreference(true);
+        syncReaderViewToggleUi();
+      }
+
+      function toggleSourcePanelFromUi() {
+        if (!currentActiveStory?.url) return;
+        const open = !sourceFramePanel.classList.contains("hidden");
+        if (open) closeSourcePanel(true);
+        else openSourcePanelForStory(currentActiveStory, true);
       }
 
       function openCommentsPanelForStory(story, persistPreference) {
@@ -1318,6 +1498,12 @@
           if (!commentsPane.classList.contains("hidden")) {
             e.preventDefault();
             closeCommentsPanel(true);
+            return;
+          }
+          if (!sourceFramePanel.classList.contains("hidden")) {
+            e.preventDefault();
+            closeSourcePanel(true);
+            return;
           }
           return;
         }
@@ -1338,6 +1524,32 @@
         ) {
           e.preventDefault();
           toggleCommentsKeyboard();
+          return;
+        }
+
+        if (
+          (e.key === "s" || e.key === "S") &&
+          !e.ctrlKey &&
+          !e.metaKey &&
+          !e.altKey
+        ) {
+          if (!currentActiveStory?.url) return;
+          e.preventDefault();
+          toggleSourcePanelFromUi();
+        }
+      });
+
+      readerViewSummaryBtn.addEventListener("click", () => {
+        if (!currentActiveStory?.url) return;
+        if (!sourceFramePanel.classList.contains("hidden")) {
+          closeSourcePanel(true);
+        }
+      });
+
+      readerViewSourceBtn.addEventListener("click", () => {
+        if (!currentActiveStory?.url) return;
+        if (sourceFramePanel.classList.contains("hidden")) {
+          openSourcePanelForStory(currentActiveStory, true);
         }
       });
 
@@ -1824,16 +2036,33 @@
           closeCommentsPanel(false);
         }
 
+        closeSourcePanel(false);
+        setReaderViewToggleVisible(false);
+
         readerBody.classList.remove("animate-reader-in", "opacity-50");
         readerTitle.textContent = story.title;
         readerBody.innerHTML = "";
 
-        // Source Link
+        let sourceUrlOk = false;
         if (story.url) {
-          readerLink.href = story.url;
-          readerLink.classList.remove("hidden");
-        } else {
-          readerLink.classList.add("hidden");
+          try {
+            const u = new URL(story.url);
+            if (u.protocol === "http:" || u.protocol === "https:") {
+              sourceOpenExternalLink.href = u.href;
+              sourceUrlOk = true;
+            }
+          } catch {
+            /* ignore */
+          }
+        }
+
+        if (sourceUrlOk) {
+          setReaderViewToggleVisible(true);
+          if (getSourceOpenPreference()) {
+            openSourcePanelForStory(story, false);
+          } else {
+            syncReaderViewToggleUi();
+          }
         }
 
         readerHnBtn.classList.remove("hidden");
