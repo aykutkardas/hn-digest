@@ -9,6 +9,25 @@ A small web app that shows the day's top 10 [Hacker News](https://news.ycombinat
 - `scripts/daily-digest.mjs` fetches the top 10 stories, summarizes each in English and Turkish with a single `gpt-4o-mini` call, caches summaries per story, writes `digests/<date>.{json,md}` and uploads the JSON to the `DIGEST` KV namespace.
 - `worker.js` serves the static UI from `public/` and the digest at `GET /api/digest` (`?date=YYYY-MM-DD` optional; defaults to the latest).
 
+## Using the site
+
+- **Summary / Source**: read the bilingual summary, or open the article itself next to the list.
+
+![hn-digest source view](preview-source.png)
+
+- **Open in LLM**: hands the open story (title, link, HN discussion, and the summary in the selected language) to ChatGPT, Claude, or Perplexity, ready for your question. The prompt is also copied to the clipboard.
+- **Keyboard shortcuts**: every action has one. Press `?` on the site to see them all.
+
+| Key | Action |
+| --- | --- |
+| `J` / `↓`, `K` / `↑` | Next / previous story |
+| `←`, `→`, `T` | Previous / next / latest day |
+| `S`, `O`, `N` | Summary or source, open the article, open the HN discussion |
+| `C`, `M` | Show comments, load more comments |
+| `A`, then `1`-`4` | Open in LLM (ChatGPT, Claude, Perplexity, copy prompt) |
+| `L`, `H` | Switch language, hide read posts |
+| `Esc` | Close the open panel or menu |
+
 ## Requirements
 
 - [Node.js](https://nodejs.org/) 22 or newer

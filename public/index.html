@@ -169,7 +169,8 @@
         background-image: none !important;
         opacity: 1 !important;
       }
-      body.hide-read-active .story-card.is-read {
+      /* The open story stays in the list until another one is opened. */
+      body.hide-read-active .story-card.is-read:not(.is-active) {
         display: none !important;
       }
 
@@ -355,7 +356,9 @@
       }
 
       .reader-title-source-link {
-        display: block;
+        display: flex;
+        align-items: center;
+        gap: 0.375rem;
         width: 100%;
         max-width: 100%;
         margin-top: 0.4rem;
@@ -363,11 +366,21 @@
         font-family: "Geist Mono", ui-monospace, monospace;
         color: #52525b;
         line-height: 1.35;
+        text-decoration: none;
+        letter-spacing: 0.01em;
+      }
+      .reader-title-source-link.hidden {
+        display: none;
+      }
+      /* Only the URL is shortened, so the icon and key hint after it stay visible. */
+      .reader-title-source-url {
+        min-width: 0;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
-        text-decoration: none;
-        letter-spacing: 0.01em;
+      }
+      .reader-title-source-link > :not(.reader-title-source-url) {
+        flex-shrink: 0;
       }
       .reader-title-source-link:hover {
         color: #a1a1aa;
@@ -506,6 +519,8 @@
             <div class="relative">
               <select
                 id="langSelect"
+                title="Language (L)"
+                aria-keyshortcuts="L"
                 class="bg-surface border border-borderSubtle text-textMuted text-[10px] font-mono rounded px-2 py-1 pr-6 cursor-pointer hover:text-textMain hover:border-borderHover transition-colors focus:outline-none uppercase shadow-sm"
               ></select>
               <div
@@ -526,6 +541,7 @@
                 </svg>
               </div>
             </div>
+            <kbd class="pointer-events-none select-none rounded border border-borderSubtle/90 bg-appBg px-1 py-0.5 text-[9px] font-mono text-textMuted/55 leading-none" title="Switch language">L</kbd>
 
             <div
               id="status"
@@ -594,14 +610,26 @@
             class="text-[10px] font-mono text-textMuted/60 hover:text-textMuted/70 transition-colors"
             >Buy Me a Coffee</a
           >
+          <span
+            class="text-textMuted/40 text-[20px] leading-none select-none"
+            aria-hidden="true"
+            >·</span
+          >
+          <button
+            id="shortcutsBtn"
+            type="button"
+            class="text-[10px] font-mono text-textMuted/60 hover:text-textMuted/70 transition-colors inline-flex items-center gap-1"
+          >
+            Shortcuts <kbd class="pointer-events-none select-none rounded border border-borderSubtle/90 bg-appBg px-1 py-0.5 text-[9px] font-mono text-textMuted/55 leading-none">?</kbd>
+          </button>
         </nav>
 
 
         <div
           class="flex items-center justify-between mt-3 py-2 border-t border-borderSubtle"
         >
-          <span class="text-xs text-textMuted font-medium"
-            >Hide read posts</span
+          <span class="text-xs text-textMuted font-medium inline-flex items-center gap-1.5"
+            >Hide read posts <kbd class="pointer-events-none select-none rounded border border-borderSubtle/90 bg-appBg px-1 py-0.5 text-[9px] font-mono text-textMuted/55 leading-none">H</kbd></span
           >
           <button
             id="hideReadToggle"
@@ -618,27 +646,51 @@
       <div class="flex-1 min-h-0 overflow-y-auto flex flex-col">
         <nav
           id="dayNav"
-          class="hidden shrink-0 items-center justify-between gap-2 px-4 pt-4"
+          class="hidden sticky top-0 z-10 shrink-0 items-center justify-between gap-2 px-4 py-3 bg-appBg border-b border-borderSubtle"
           aria-label="Digest day"
         >
           <button
             id="dayNavPrev"
             type="button"
-            class="text-[10px] font-mono text-textMuted bg-surface border border-borderSubtle rounded px-2 py-1 hover:text-textMain hover:border-borderHover transition-colors disabled:opacity-40 disabled:pointer-events-none"
+            title="Previous day (←)"
+            class="text-[10px] font-mono text-textMuted bg-surface border border-borderSubtle rounded px-2 py-1 inline-flex items-center gap-1.5 hover:text-textMain hover:border-borderHover transition-colors disabled:opacity-40 disabled:pointer-events-none"
           >
-            ← Prev
+            <kbd class="pointer-events-none select-none rounded border border-borderSubtle/90 bg-appBg px-1 py-0.5 text-[9px] font-mono text-textMuted/55 leading-none">←</kbd> Prev
           </button>
           <span
             id="dayNavLabel"
             class="text-[11px] font-mono text-textMain uppercase tracking-wider"
           ></span>
-          <button
-            id="dayNavNext"
-            type="button"
-            class="text-[10px] font-mono text-textMuted bg-surface border border-borderSubtle rounded px-2 py-1 hover:text-textMain hover:border-borderHover transition-colors disabled:opacity-40 disabled:pointer-events-none"
-          >
-            Next →
-          </button>
+          <div class="inline-flex items-center gap-1.5">
+            <button
+              id="dayNavNext"
+              type="button"
+              title="Next day (→)"
+              class="text-[10px] font-mono text-textMuted bg-surface border border-borderSubtle rounded px-2 py-1 inline-flex items-center gap-1.5 hover:text-textMain hover:border-borderHover transition-colors disabled:opacity-40 disabled:pointer-events-none"
+            >
+              Next <kbd class="pointer-events-none select-none rounded border border-borderSubtle/90 bg-appBg px-1 py-0.5 text-[9px] font-mono text-textMuted/55 leading-none">→</kbd>
+            </button>
+            <div class="inline-flex items-center gap-1" role="group" aria-label="Move between stories">
+              <button
+                id="storyPrevBtn"
+                type="button"
+                title="Previous story (↑ or K)"
+                aria-label="Previous story"
+                class="text-[10px] font-mono text-textMuted bg-surface border border-borderSubtle rounded px-1.5 py-1 inline-flex items-center gap-1.5 hover:text-textMain hover:border-borderHover transition-colors disabled:opacity-40 disabled:pointer-events-none"
+              >
+                ↑
+              </button>
+              <button
+                id="storyNextBtn"
+                type="button"
+                title="Next story (↓ or J)"
+                aria-label="Next story"
+                class="text-[10px] font-mono text-textMuted bg-surface border border-borderSubtle rounded px-1.5 py-1 inline-flex items-center gap-1.5 hover:text-textMain hover:border-borderHover transition-colors disabled:opacity-40 disabled:pointer-events-none"
+              >
+                ↓
+              </button>
+            </div>
+          </div>
         </nav>
         <div
           id="feedList"
@@ -715,6 +767,7 @@
                     ></path>
                   </svg>
                   Back to Feed
+                  <kbd class="pointer-events-none select-none rounded border border-borderSubtle/90 bg-appBg px-1 py-0.5 text-[9px] font-mono text-textMuted/55 leading-none">Esc</kbd>
                 </button>
               </div>
 
@@ -738,12 +791,6 @@
                     class="flex flex-wrap items-center justify-start gap-3 md:gap-4 mt-5"
                   >
                     <div
-                      id="readerStatus"
-                      class="inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-[11px] font-mono border border-borderSubtle bg-appBg text-textMuted shadow-sm"
-                    >
-                      Loading…
-                    </div>
-                    <div
                       id="readerViewToggle"
                       role="group"
                       aria-label="Article view"
@@ -753,10 +800,11 @@
                       <button
                         id="readerViewSummaryBtn"
                         type="button"
-                        class="feed-kind-btn flex-1 min-w-0 px-2.5 py-1.5 text-[11px] font-mono rounded-md transition-colors"
+                        class="feed-kind-btn flex-1 min-w-0 px-2.5 py-1.5 text-[11px] font-mono rounded-md transition-colors inline-flex items-center justify-center gap-1.5"
                         aria-pressed="true"
                       >
-                        Summary
+                        <span>Summary</span>
+                        <kbd class="pointer-events-none select-none rounded border border-borderSubtle/90 bg-appBg px-1 py-0.5 text-[9px] font-mono text-textMuted/55 leading-none">S</kbd>
                       </button>
                       <button
                         id="readerViewSourceBtn"
@@ -788,6 +836,33 @@
                           >C</kbd
                         >
                       </button>
+                    </div>
+                    <div id="llmMenuWrap" class="hidden relative shrink-0">
+                      <div class="rounded-lg border border-borderSubtle bg-appBg p-0.5 inline-flex">
+                        <button
+                          id="llmMenuBtn"
+                          type="button"
+                          aria-haspopup="menu"
+                          aria-expanded="false"
+                          title="Ask an AI assistant about this story"
+                          class="feed-kind-btn px-2.5 py-1.5 text-[11px] font-mono rounded-md transition-colors inline-flex items-center justify-center gap-1.5"
+                        >
+                          <span id="llmMenuLabel">Open in LLM</span>
+                          <kbd class="pointer-events-none select-none rounded border border-borderSubtle/90 bg-appBg px-1 py-0.5 text-[9px] font-mono text-textMuted/55 leading-none">A</kbd>
+                          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        </button>
+                      </div>
+                      <div
+                        id="llmMenu"
+                        role="menu"
+                        class="hidden absolute left-0 mt-1.5 w-48 rounded-lg border border-borderSubtle bg-surface p-1 shadow-xl z-30"
+                      >
+                        <button type="button" role="menuitem" data-llm="chatgpt" class="w-full flex items-center justify-between gap-2 px-2.5 py-1.5 text-[11px] font-mono text-textMuted rounded-md hover:bg-surfaceHover hover:text-textMain"><span>Open in ChatGPT</span><kbd class="pointer-events-none select-none rounded border border-borderSubtle/90 bg-appBg px-1 py-0.5 text-[9px] font-mono text-textMuted/55 leading-none">1</kbd></button>
+                        <button type="button" role="menuitem" data-llm="claude" class="w-full flex items-center justify-between gap-2 px-2.5 py-1.5 text-[11px] font-mono text-textMuted rounded-md hover:bg-surfaceHover hover:text-textMain"><span>Open in Claude</span><kbd class="pointer-events-none select-none rounded border border-borderSubtle/90 bg-appBg px-1 py-0.5 text-[9px] font-mono text-textMuted/55 leading-none">2</kbd></button>
+                        <button type="button" role="menuitem" data-llm="perplexity" class="w-full flex items-center justify-between gap-2 px-2.5 py-1.5 text-[11px] font-mono text-textMuted rounded-md hover:bg-surfaceHover hover:text-textMain"><span>Open in Perplexity</span><kbd class="pointer-events-none select-none rounded border border-borderSubtle/90 bg-appBg px-1 py-0.5 text-[9px] font-mono text-textMuted/55 leading-none">3</kbd></button>
+                        <div class="my-1 border-t border-borderSubtle"></div>
+                        <button type="button" role="menuitem" data-llm="copy" class="w-full flex items-center justify-between gap-2 px-2.5 py-1.5 text-[11px] font-mono text-textMuted rounded-md hover:bg-surfaceHover hover:text-textMain"><span>Copy prompt</span><kbd class="pointer-events-none select-none rounded border border-borderSubtle/90 bg-appBg px-1 py-0.5 text-[9px] font-mono text-textMuted/55 leading-none">4</kbd></button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -933,15 +1008,17 @@
                   target="_blank"
                   rel="noopener noreferrer"
                   class="text-[11px] font-mono text-textMuted hover:text-hn uppercase tracking-wider"
-                  >HN ↗</a
+                  ><span class="inline-flex items-center gap-1.5">HN ↗ <kbd class="pointer-events-none select-none rounded border border-borderSubtle/90 bg-appBg px-1 py-0.5 text-[9px] font-mono text-textMuted/55 leading-none">N</kbd></span></a
                 >
                 <button
                   id="closeCommentsBtn"
                   type="button"
-                  class="w-8 h-8 rounded-lg border border-borderSubtle text-textMuted hover:text-textMain hover:border-borderHover flex items-center justify-center text-lg leading-none"
+                  class="h-8 px-2 rounded-lg border border-borderSubtle text-textMuted hover:text-textMain hover:border-borderHover flex items-center justify-center gap-1.5 leading-none"
                   aria-label="Close comments"
+                  title="Close comments (Esc)"
                 >
-                  ×
+                  <span class="text-lg">×</span>
+                  <kbd class="pointer-events-none select-none rounded border border-borderSubtle/90 bg-appBg px-1 py-0.5 text-[9px] font-mono text-textMuted/55 leading-none">Esc</kbd>
                 </button>
               </div>
             </div>
@@ -954,6 +1031,27 @@
       </div>
     </main>
 
+    <div
+      id="shortcutsOverlay"
+      class="hidden fixed inset-0 z-50 bg-black/70 items-center justify-center p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="shortcutsTitle"
+    >
+      <div class="w-full max-w-md rounded-xl border border-borderSubtle bg-surface p-5 shadow-2xl">
+        <div class="flex items-center justify-between mb-4">
+          <h2 id="shortcutsTitle" class="text-sm font-semibold text-textMain">Keyboard shortcuts</h2>
+          <button
+            id="shortcutsClose"
+            type="button"
+            class="text-[10px] font-mono text-textMuted bg-appBg border border-borderSubtle rounded px-2 py-1 hover:text-textMain"
+          >
+            Esc
+          </button>
+        </div>
+        <dl id="shortcutsList" class="grid grid-cols-[auto_1fr] items-center gap-x-4 gap-y-2"></dl>
+      </div>
+    </div>
     <script>
       const LS_READ_STATS = "readStats";
       const LS_READ_STORIES = "readStories";
@@ -1082,6 +1180,7 @@
 
       langSelect.addEventListener("change", (e) => {
         currentLang = e.target.value;
+        langSelect.blur();
         if (currentActiveStory && activeCardId) {
           const currentCard = document.getElementById(`card-${activeCardId}`);
           handleCardClick(currentActiveStory, currentCard);
@@ -1100,7 +1199,6 @@
       const readerTitleSourceLink = document.getElementById(
         "readerTitleSourceLink"
       );
-      const readerStatus = document.getElementById("readerStatus");
       const readerBody = document.getElementById("readerBody");
       const readerViewToggle = document.getElementById("readerViewToggle");
       const readerViewSummaryBtn = document.getElementById(
@@ -1311,6 +1409,9 @@
         dayNav.classList.add("flex");
       }
 
+      document.getElementById("storyPrevBtn").addEventListener("click", () => navigateFeedByArrow(-1));
+      document.getElementById("storyNextBtn").addEventListener("click", () => navigateFeedByArrow(1));
+
       dayNavPrev.addEventListener("click", () => {
         const older = digestDateList[digestDateList.indexOf(dailyDigestDate) + 1];
         if (older) selectDigestDate(older);
@@ -1320,9 +1421,97 @@
         if (newer) selectDigestDate(newer);
       });
 
+      const llmMenuWrap = document.getElementById("llmMenuWrap");
+      const llmMenuBtn = document.getElementById("llmMenuBtn");
+      const llmMenu = document.getElementById("llmMenu");
+      const llmMenuLabel = document.getElementById("llmMenuLabel");
+
+      /** The story's details for an AI assistant, ending in blank lines for the reader's question. */
+      function llmPrompt(story) {
+        const hn = `https://news.ycombinator.com/item?id=${story.id}`;
+        const summary = story.summaries?.[currentLang] || "";
+        const labels =
+          currentLang === "tr"
+            ? ["Başlık", "Bağlantı", "HN tartışması", "Özet"]
+            : ["Title", "Link", "HN discussion", "Summary"];
+        return [
+          `${labels[0]}: ${story.title}`,
+          `${labels[1]}: ${story.url || hn}`,
+          `${labels[2]}: ${hn}`,
+          "",
+          `${labels[3]}:`,
+          summary,
+          "",
+          "",
+        ].join("\n");
+      }
+
+      async function copyText(text) {
+        try {
+          await navigator.clipboard.writeText(text);
+        } catch {
+          const area = document.createElement("textarea");
+          area.value = text;
+          area.style.position = "fixed";
+          area.style.opacity = "0";
+          document.body.appendChild(area);
+          area.select();
+          document.execCommand("copy");
+          area.remove();
+        }
+      }
+
+      function setLlmMenuOpen(open) {
+        llmMenu.classList.toggle("hidden", !open);
+        llmMenuBtn.setAttribute("aria-expanded", open ? "true" : "false");
+        if (!open) return;
+        // Open under the button's left edge, or its right edge if that would leave the screen.
+        llmMenu.classList.add("left-0");
+        llmMenu.classList.remove("right-0");
+        if (llmMenu.getBoundingClientRect().right > window.innerWidth - 8) {
+          llmMenu.classList.remove("left-0");
+          llmMenu.classList.add("right-0");
+        }
+      }
+
+      let llmCopiedTimer = 0;
+      function openInLlm(service) {
+        if (!currentActiveStory) return;
+        const prompt = llmPrompt(currentActiveStory);
+        // ChatGPT and Perplexity take the prompt in the URL; Claude opens a new chat to paste into.
+        const urls = {
+          chatgpt: `https://chatgpt.com/?q=${encodeURIComponent(prompt)}`,
+          claude: "https://claude.ai/new",
+          perplexity: `https://www.perplexity.ai/search?q=${encodeURIComponent(prompt)}`,
+        };
+        if (urls[service]) window.open(urls[service], "_blank", "noopener,noreferrer");
+        copyText(prompt);
+        setLlmMenuOpen(false);
+        llmMenuLabel.textContent = "Prompt copied";
+        clearTimeout(llmCopiedTimer);
+        llmCopiedTimer = setTimeout(() => {
+          llmMenuLabel.textContent = "Open in LLM";
+        }, 2200);
+      }
+
+      llmMenuBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        setLlmMenuOpen(llmMenu.classList.contains("hidden"));
+      });
+      llmMenu.addEventListener("click", (e) => {
+        const item = e.target.closest("[data-llm]");
+        if (item) openInLlm(item.dataset.llm);
+      });
+      document.addEventListener("click", (e) => {
+        if (!llmMenuWrap.contains(e.target)) setLlmMenuOpen(false);
+      });
+
       function resetReader() {
+        clearTimeout(readTimer);
         activeCardId = null;
         currentActiveStory = null;
+        llmMenuWrap.classList.add("hidden");
+        setLlmMenuOpen(false);
         emptyState.classList.remove("hidden");
         readerWorkspace.classList.add("hidden");
         readerWorkspace.classList.remove("flex");
@@ -1440,6 +1629,27 @@
         return getReadStories().some((x) => Number(x) === n);
       }
 
+      /** A story counts as read after it has been open for this long while the tab is visible. */
+      const READ_AFTER_MS = 3000;
+      let readTimer = 0;
+
+      function scheduleReadState(story, cardElement) {
+        clearTimeout(readTimer);
+        readTimer = setTimeout(() => {
+          if (activeCardId !== story.id) return;
+          if (document.hidden) {
+            // Start over once the reader comes back to the tab.
+            document.addEventListener(
+              "visibilitychange",
+              () => activeCardId === story.id && scheduleReadState(story, cardElement),
+              { once: true }
+            );
+            return;
+          }
+          applyReadState(story, cardElement);
+        }, READ_AFTER_MS);
+      }
+
       function applyReadState(story, cardElement) {
         cardElement.classList.add("is-read");
         const icon = cardElement.querySelector(".check-icon");
@@ -1450,11 +1660,17 @@
       const COMMENTS_OPEN_PREF_KEY = "hn_digest_comments_open_v1";
       const SOURCE_OPEN_PREF_KEY = "hn_digest_source_open_v1";
 
+      // On mobile the thread covers the article, so it always starts closed and
+      // opening it there doesn't change the desktop preference.
+      const isMobileViewport = () => window.innerWidth < 768;
+
       function getCommentsOpenPreference() {
+        if (isMobileViewport()) return false;
         return localStorage.getItem(COMMENTS_OPEN_PREF_KEY) === "1";
       }
 
       function setCommentsOpenPreference(open) {
+        if (isMobileViewport()) return;
         localStorage.setItem(COMMENTS_OPEN_PREF_KEY, open ? "1" : "0");
       }
 
@@ -1658,68 +1874,133 @@
         window.open(href, "_blank", "noopener,noreferrer");
       }
 
+      /** Every action on the page, in the order the help overlay lists them. */
+      const SHORTCUTS = [
+        ["J / ↓", "Next story"],
+        ["K / ↑", "Previous story"],
+        ["←", "Previous day"],
+        ["→", "Next day"],
+        ["T", "Latest day"],
+        ["S", "Switch between summary and source"],
+        ["O", "Open the article in a new tab"],
+        ["N", "Open the HN discussion in a new tab"],
+        ["C", "Show or hide comments"],
+        ["M", "Load more comments"],
+        ["A", "Open in LLM, then 1-4 to pick"],
+        ["L", "Switch language (EN / TR)"],
+        ["H", "Hide read posts"],
+        ["?", "Show these shortcuts"],
+        ["Esc", "Close the open panel or menu; back to the list on mobile"],
+      ];
+
+      const shortcutsOverlay = document.getElementById("shortcutsOverlay");
+      document.getElementById("shortcutsList").innerHTML = SHORTCUTS.map(
+        ([keys, label]) =>
+          `<dt class="justify-self-start"><kbd class="rounded border border-borderSubtle bg-appBg px-1.5 py-0.5 text-[10px] font-mono text-textMain">${escapeHtml(keys)}</kbd></dt><dd class="text-[12px] text-textMuted">${escapeHtml(label)}</dd>`
+      ).join("");
+
+      function setShortcutsOpen(open) {
+        shortcutsOverlay.classList.toggle("hidden", !open);
+        shortcutsOverlay.classList.toggle("flex", open);
+      }
+      document.getElementById("shortcutsBtn").addEventListener("click", () => setShortcutsOpen(true));
+      document.getElementById("shortcutsClose").addEventListener("click", () => setShortcutsOpen(false));
+      shortcutsOverlay.addEventListener("click", (e) => {
+        if (e.target === shortcutsOverlay) setShortcutsOpen(false);
+      });
+
+      function openHnDiscussion() {
+        if (!currentActiveStory) return;
+        window.open(`https://news.ycombinator.com/item?id=${currentActiveStory.id}`, "_blank", "noopener,noreferrer");
+      }
+
+      function goToLatestDay() {
+        if (latestDigestDate) selectDigestDate(latestDigestDate);
+      }
+
+      function isMobileReaderOpen() {
+        return window.innerWidth < 768 && !readerPane.classList.contains("hidden");
+      }
+
       document.addEventListener("keydown", (e) => {
         if (keyboardInFormField()) return;
+        if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+        if (!shortcutsOverlay.classList.contains("hidden")) {
+          if (e.key === "Escape" || e.key === "?") {
+            e.preventDefault();
+            setShortcutsOpen(false);
+          }
+          return;
+        }
+
+        if (!llmMenu.classList.contains("hidden")) {
+          const pick = { 1: "chatgpt", 2: "claude", 3: "perplexity", 4: "copy" }[e.key];
+          if (pick || e.key === "Escape" || e.key.toLowerCase() === "a") {
+            e.preventDefault();
+            if (pick) openInLlm(pick);
+            else setLlmMenuOpen(false);
+          }
+          return;
+        }
+
+        if (e.key === "?") {
+          e.preventDefault();
+          setShortcutsOpen(true);
+          return;
+        }
 
         if (e.key === "Escape") {
           if (!commentsPane.classList.contains("hidden")) {
             e.preventDefault();
             closeCommentsPanel(true);
-            return;
-          }
-          if (!sourceFramePanel.classList.contains("hidden")) {
+          } else if (!sourceFramePanel.classList.contains("hidden")) {
             e.preventDefault();
             closeSourcePanel(true);
-            return;
+          } else if (isMobileReaderOpen()) {
+            e.preventDefault();
+            mobileBackBtn.click();
           }
           return;
         }
 
         if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-          if (
-            !e.ctrlKey &&
-            !e.metaKey &&
-            !e.altKey &&
-            shouldArrowNavigateFeed()
-          ) {
+          if (shouldArrowNavigateFeed()) {
             e.preventDefault();
             navigateFeedByArrow(e.key === "ArrowDown" ? 1 : -1);
           }
           return;
         }
 
-        if (
-          (e.key === "c" || e.key === "C") &&
-          !e.ctrlKey &&
-          !e.metaKey &&
-          !e.altKey
-        ) {
-          e.preventDefault();
-          toggleCommentsKeyboard();
+        if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+          const btn = e.key === "ArrowLeft" ? dayNavPrev : dayNavNext;
+          if (!btn.disabled && !dayNav.classList.contains("hidden")) {
+            e.preventDefault();
+            btn.click();
+          }
           return;
         }
 
-        if (
-          (e.key === "s" || e.key === "S") &&
-          !e.ctrlKey &&
-          !e.metaKey &&
-          !e.altKey
-        ) {
-          if (!currentActiveStory?.url) return;
+        const actions = {
+          j: () => navigateFeedByArrow(1),
+          k: () => navigateFeedByArrow(-1),
+          t: goToLatestDay,
+          c: toggleCommentsKeyboard,
+          s: () => currentActiveStory?.url && toggleSourcePanelFromUi(),
+          o: () => currentActiveStory?.url && openCurrentStoryInNewTab(),
+          n: openHnDiscussion,
+          m: () => commentsBody.querySelector("[data-load-more-comments]:not(:disabled)")?.click(),
+          a: () => !llmMenuWrap.classList.contains("hidden") && setLlmMenuOpen(true),
+          l: () => {
+            langSelect.value = currentLang === "en" ? "tr" : "en";
+            langSelect.dispatchEvent(new Event("change"));
+          },
+          h: () => hideReadToggle.click(),
+        };
+        const action = actions[e.key.toLowerCase()];
+        if (action) {
           e.preventDefault();
-          toggleSourcePanelFromUi();
-          return;
-        }
-
-        if (
-          (e.key === "o" || e.key === "O") &&
-          !e.ctrlKey &&
-          !e.metaKey &&
-          !e.altKey
-        ) {
-          if (!currentActiveStory?.url) return;
-          e.preventDefault();
-          openCurrentStoryInNewTab();
+          action();
         }
       });
 
@@ -1982,6 +2263,11 @@
               btn.className =
                 "w-full py-2.5 px-4 rounded-lg text-xs font-medium border border-borderSubtle bg-surface text-textMuted hover:text-hn hover:border-hn/40 transition-colors disabled:opacity-50 inline-flex items-center justify-center gap-2";
               btn.textContent = `Load more comments (${remaining} remaining)`;
+              const moreKey = document.createElement("kbd");
+              moreKey.className = "pointer-events-none select-none rounded border border-borderSubtle/90 bg-appBg px-1 py-0.5 text-[9px] font-mono text-textMuted/55 leading-none";
+              moreKey.textContent = "M";
+              btn.appendChild(moreKey);
+              btn.dataset.loadMoreComments = "1";
               btn.addEventListener("click", () => appendRootBatch(btn));
               footer.appendChild(btn);
             }
@@ -2140,10 +2426,6 @@
         }
       }
 
-      function summaryStatusLangSuffix() {
-        return currentLang === "en" ? "" : ` (${currentLang.toUpperCase()})`;
-      }
-
       async function handleCardClick(story, cardElement) {
         if (activeCardId) {
           const oldCard = document.getElementById(`card-${activeCardId}`);
@@ -2197,7 +2479,16 @@
 
         if (sourceUrlOk) {
           readerTitleSourceLink.href = sourceHrefForStory;
-          readerTitleSourceLink.textContent = sourceHrefForStory;
+          const url = document.createElement("span");
+          url.className = "reader-title-source-url";
+          url.textContent = sourceHrefForStory;
+          const icon = document.createElement("span");
+          icon.setAttribute("aria-hidden", "true");
+          icon.textContent = "↗";
+          const openKey = document.createElement("kbd");
+          openKey.className = "pointer-events-none select-none rounded border border-borderSubtle/90 bg-appBg px-1 py-0.5 text-[9px] font-mono text-textMuted/55 leading-none";
+          openKey.textContent = "O";
+          readerTitleSourceLink.replaceChildren(url, icon, openKey);
           readerTitleSourceLink.classList.remove("hidden");
         } else {
           readerTitleSourceLink.removeAttribute("href");
@@ -2220,17 +2511,16 @@
         readerContent.scrollTop = 0;
 
         const summary = story.summaries?.[currentLang];
+        llmMenuWrap.classList.toggle("hidden", !summary);
         if (!summary) {
-          readerBody.innerHTML = "";
-          readerStatus.innerHTML = `<span class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0"></span><span class="uppercase tracking-wider text-[10px] leading-snug">No summary for this story</span></span>`;
+          readerBody.innerHTML = '<p class="text-sm text-textMuted">There’s no summary for this story.</p>';
           return;
         }
-        readerStatus.innerHTML = `<span class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-hn shrink-0"></span><span class="uppercase tracking-wider">Daily digest ${escapeHtml(dailyDigestDate)}${summaryStatusLangSuffix()}</span></span>`;
         readerBody.innerHTML = markdownToSafeHtml(summary);
         applyBlankTargets(readerBody);
         void readerBody.offsetWidth;
         readerBody.classList.add("animate-reader-in");
-        applyReadState(story, cardElement);
+        scheduleReadState(story, cardElement);
       }
 
       renderActivityGraph();
