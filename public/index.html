@@ -179,6 +179,17 @@
         background-image: none !important;
         opacity: 1 !important;
       }
+      /* Touch screens: no keyboard hints, no shortcuts link, no URL line under the title. */
+      @media (max-width: 767px) {
+        kbd,
+        .shortcuts-link {
+          display: none !important;
+        }
+        .reader-title-source-link {
+          display: none !important;
+        }
+      }
+
       /* The open story stays in the list until another one is opened. */
       body.hide-read-active .story-card.is-read:not(.is-active) {
         display: none !important;
@@ -566,7 +577,7 @@
           </div>
         </div>
 
-        <div class="pt-4 border-t border-borderSubtle">
+        <div class="hidden md:block pt-4 border-t border-borderSubtle">
           <div class="flex items-center justify-between mb-2.5">
             <span
               class="text-[10px] text-textMuted font-mono uppercase tracking-wider"
@@ -621,14 +632,14 @@
             >Buy Me a Coffee</a
           >
           <span
-            class="text-textMuted/40 text-[20px] leading-none select-none"
+            class="shortcuts-link text-textMuted/40 text-[20px] leading-none select-none"
             aria-hidden="true"
             >·</span
           >
           <button
             id="shortcutsBtn"
             type="button"
-            class="text-[10px] font-mono text-textMuted/60 hover:text-textMuted/70 transition-colors inline-flex items-center gap-1"
+            class="shortcuts-link text-[10px] font-mono text-textMuted/60 hover:text-textMuted/70 transition-colors inline-flex items-center gap-1"
           >
             Shortcuts <kbd class="pointer-events-none select-none rounded border border-borderSubtle/90 bg-appBg px-1 py-0.5 text-[9px] font-mono text-textMuted/55 leading-none">?</kbd>
           </button>
@@ -757,38 +768,26 @@
             <div
               class="sticky top-0 z-20 bg-surface/95 backdrop-blur-xl border-b border-borderSubtle shadow-sm flex flex-col shrink-0"
             >
-              <div class="md:hidden p-4 border-b border-borderSubtle">
-                <button
-                  id="mobileBackBtn"
-                  type="button"
-                  class="text-sm text-textMuted hover:text-textMain flex items-center gap-2"
-                >
-                  <svg
-                    class="w-4 h-4"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M15 19l-7-7 7-7"
-                    ></path>
-                  </svg>
-                  Back to Feed
-                  <kbd class="pointer-events-none select-none rounded border border-borderSubtle/90 bg-appBg px-1 py-0.5 text-[9px] font-mono text-textMuted/55 leading-none">Esc</kbd>
-                </button>
-              </div>
 
               <div
-                class="px-6 py-8 md:py-10 md:px-10 lg:px-16 flex flex-col items-center"
+                class="px-4 py-3 md:py-10 md:px-10 lg:px-16 flex flex-col items-center"
               >
                 <div class="w-full max-w-2xl min-w-0 text-left">
-                  <h2
-                    id="readerTitle"
-                    class="text-base sm:text-lg md:text-xl font-medium tracking-tight text-textMain leading-snug selection:bg-hn selection:text-white"
-                  ></h2>
+                  <div class="flex items-start gap-2">
+                    <button
+                      id="mobileBackBtn"
+                      type="button"
+                      aria-label="Back to feed"
+                      title="Back to feed (Esc)"
+                      class="md:hidden -ml-1 mt-0.5 shrink-0 w-7 h-7 rounded-md text-textMuted hover:text-textMain hover:bg-surfaceHover flex items-center justify-center"
+                    >
+                      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+                    </button>
+                    <div class="min-w-0 flex-1">
+                    <h2
+                      id="readerTitle"
+                      class="min-w-0 text-[15px] sm:text-lg md:text-xl font-medium tracking-tight text-textMain leading-snug line-clamp-2 md:line-clamp-none selection:bg-hn selection:text-white"
+                    ></h2>
                   <a
                     id="readerTitleSourceLink"
                     href="#"
@@ -798,7 +797,7 @@
                   ></a>
 
                   <div
-                    class="flex flex-wrap items-center justify-start gap-3 md:gap-4 mt-5"
+                    class="flex flex-wrap items-center justify-start gap-2 md:gap-4 mt-3 md:mt-5"
                   >
                     <div
                       id="readerViewToggle"
@@ -875,12 +874,14 @@
                       </div>
                     </div>
                   </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
 
             <div
-              class="px-6 md:px-10 lg:px-16 pb-28 md:pb-32 flex flex-col items-center w-full"
+              class="px-4 md:px-10 lg:px-16 pb-28 md:pb-32 flex flex-col items-center w-full"
             >
               <div
                 id="readerPostSlot"
@@ -1485,6 +1486,11 @@
       }
 
       let llmCopiedTimer = 0;
+      /** The menu label is shorter on phones so the reader toolbar fits on one line. */
+      function setLlmLabel(full = "Open in LLM", short = "LLM") {
+        llmMenuLabel.textContent = window.innerWidth < 768 ? short : full;
+      }
+      setLlmLabel();
       function openInLlm(service) {
         if (!currentActiveStory) return;
         const prompt = llmPrompt(currentActiveStory);
@@ -1497,11 +1503,9 @@
         if (urls[service]) window.open(urls[service], "_blank", "noopener,noreferrer");
         copyText(prompt);
         setLlmMenuOpen(false);
-        llmMenuLabel.textContent = "Prompt copied";
+        setLlmLabel("Prompt copied", "Copied");
         clearTimeout(llmCopiedTimer);
-        llmCopiedTimer = setTimeout(() => {
-          llmMenuLabel.textContent = "Open in LLM";
-        }, 2200);
+        llmCopiedTimer = setTimeout(() => setLlmLabel(), 2200);
       }
 
       llmMenuBtn.addEventListener("click", (e) => {
@@ -1518,6 +1522,12 @@
 
       function resetReader() {
         clearTimeout(readTimer);
+        if (window.innerWidth < 768) {
+          // On phones the reader covers the list, so going back to "no story" means showing the list.
+          feedPane.classList.remove("hidden");
+          readerPane.classList.add("hidden");
+          readerPane.classList.remove("flex");
+        }
         activeCardId = null;
         currentActiveStory = null;
         llmMenuWrap.classList.add("hidden");
