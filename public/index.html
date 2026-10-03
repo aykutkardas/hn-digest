@@ -7,7 +7,7 @@
       name="description"
       content="Hacker News top stories with AI summaries and inline threads."
     />
-    <title>HN Daily Digest</title>
+    <title>HN Digest</title>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
 
     <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
@@ -256,25 +256,14 @@
         box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset;
       }
 
+      /* One quiet rail: muted orange marks top-level comments, replies stay neutral. */
       .hn-comment-rail {
-        width: 5px;
+        width: 2px;
         flex-shrink: 0;
-        background: #52525b;
+        background: #3f3f46;
       }
-      .hn-comment-block[data-rail="0"] .hn-comment-rail {
-        background: linear-gradient(180deg, #ff8533, #ff6600);
-      }
-      .hn-comment-block[data-rail="1"] .hn-comment-rail {
-        background: linear-gradient(180deg, #a78bfa, #7c3aed);
-      }
-      .hn-comment-block[data-rail="2"] .hn-comment-rail {
-        background: linear-gradient(180deg, #5eead4, #14b8a6);
-      }
-      .hn-comment-block[data-rail="3"] .hn-comment-rail {
-        background: linear-gradient(180deg, #7dd3fc, #0ea5e9);
-      }
-      .hn-comment-block[data-rail="4"] .hn-comment-rail {
-        background: linear-gradient(180deg, #fcd34d, #d97706);
+      .hn-comment-block[data-depth="0"] > .hn-comment-card .hn-comment-rail {
+        background: rgba(255, 102, 0, 0.6);
       }
 
       .hn-comment-inner {
@@ -288,9 +277,7 @@
         flex-wrap: wrap;
         align-items: center;
         gap: 0.35rem 0.65rem;
-        margin-bottom: 0.55rem;
-        padding-bottom: 0.45rem;
-        border-bottom: 1px solid rgba(39, 39, 42, 0.85);
+        margin-bottom: 0.4rem;
       }
       .hn-comment-author {
         font-size: 0.8125rem;
@@ -305,16 +292,6 @@
         text-transform: uppercase;
         letter-spacing: 0.06em;
       }
-      .hn-comment-depth {
-        font-size: 0.5625rem;
-        font-family: "Geist Mono", ui-monospace, monospace;
-        color: #52525b;
-        padding: 0.15rem 0.4rem;
-        border-radius: 0.25rem;
-        background: rgba(39, 39, 42, 0.9);
-        border: 1px solid #27272a;
-      }
-
       .hn-comment-body {
         font-size: 0.8125rem;
         line-height: 1.65;
@@ -526,32 +503,6 @@
           </div>
 
           <div class="flex items-center gap-2">
-            <button
-              id="openSettingsBtn"
-              type="button"
-              class="text-textMuted hover:text-white transition-colors"
-              title="API key"
-            >
-              <svg
-                class="w-4 h-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
-                ></path>
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                ></path>
-              </svg>
-            </button>
             <div class="relative">
               <select
                 id="langSelect"
@@ -645,34 +596,6 @@
           >
         </nav>
 
-        <div
-          class="flex items-center gap-2 mt-3 pt-3 border-t border-borderSubtle"
-          role="group"
-          aria-label="Hacker News feed"
-        >
-          <span
-            class="text-[10px] text-textMuted font-mono uppercase tracking-wider shrink-0 w-9"
-            >Feed</span
-          >
-          <div
-            class="flex flex-1 min-w-0 rounded-lg border border-borderSubtle bg-appBg p-0.5 gap-0.5"
-          >
-            <button
-              id="feedKindTop"
-              type="button"
-              class="feed-kind-btn flex-1 min-w-0 py-1.5 text-[10px] font-mono rounded-md transition-colors"
-            >
-              Top
-            </button>
-            <button
-              id="feedKindNew"
-              type="button"
-              class="feed-kind-btn flex-1 min-w-0 py-1.5 text-[10px] font-mono rounded-md transition-colors"
-            >
-              New
-            </button>
-          </div>
-        </div>
 
         <div
           class="flex items-center justify-between mt-3 py-2 border-t border-borderSubtle"
@@ -693,23 +616,34 @@
       </header>
 
       <div class="flex-1 min-h-0 overflow-y-auto flex flex-col">
+        <nav
+          id="dayNav"
+          class="hidden shrink-0 items-center justify-between gap-2 px-4 pt-4"
+          aria-label="Digest day"
+        >
+          <button
+            id="dayNavPrev"
+            type="button"
+            class="text-[10px] font-mono text-textMuted bg-surface border border-borderSubtle rounded px-2 py-1 hover:text-textMain hover:border-borderHover transition-colors disabled:opacity-40 disabled:pointer-events-none"
+          >
+            ← Prev
+          </button>
+          <span
+            id="dayNavLabel"
+            class="text-[11px] font-mono text-textMain uppercase tracking-wider"
+          ></span>
+          <button
+            id="dayNavNext"
+            type="button"
+            class="text-[10px] font-mono text-textMuted bg-surface border border-borderSubtle rounded px-2 py-1 hover:text-textMain hover:border-borderHover transition-colors disabled:opacity-40 disabled:pointer-events-none"
+          >
+            Next →
+          </button>
+        </nav>
         <div
           id="feedList"
           class="flex-1 min-h-[content-fit] p-4 space-y-3"
         ></div>
-        <div
-          id="loadMoreFooter"
-          class="shrink-0 px-4 pb-6 pt-2 bg-appBg border-t border-borderSubtle/80"
-        >
-          <button
-            id="loadMoreBtn"
-            type="button"
-            disabled
-            class="w-full bg-surface border border-borderSubtle text-textMuted hover:text-hn hover:border-hn/50 px-4 py-2.5 rounded-lg text-xs font-medium transition-all duration-300 disabled:opacity-60 disabled:hover:text-textMuted disabled:hover:border-borderSubtle shadow-sm inline-flex items-center justify-center gap-2"
-          >
-            Load More
-          </button>
-        </div>
       </div>
     </aside>
 
@@ -740,7 +674,7 @@
             d="M14 4v5h5M10 14h4M10 18h4M8 10h8"
           ></path>
         </svg>
-        <p class="text-sm">Select a story to generate summary</p>
+        <p class="text-sm">Select a story to read its summary</p>
       </div>
 
       <div
@@ -1020,69 +954,13 @@
       </div>
     </main>
 
-    <dialog
-      id="settingsModal"
-      aria-labelledby="settingsModalTitle"
-      class="bg-surface border border-borderSubtle rounded-2xl p-8 max-w-md w-[90vw] mx-auto shadow-2xl relative text-left"
-    >
-      <button
-        id="closeSettingsBtn"
-        type="button"
-        class="absolute top-5 right-5 text-textMuted hover:text-white"
-        aria-label="Close settings"
-      >
-        &times;
-      </button>
-      <h2 id="settingsModalTitle" class="text-xl font-medium text-white mb-2">
-        API key
-      </h2>
-      <p class="text-sm text-textMuted mb-6">
-        Your OpenAI key is saved in this browser only. It is sent to this app’s
-        server in the Authorization header when you request a summary.
-      </p>
-
-      <input
-        type="password"
-        id="apiKeyInput"
-        placeholder="sk-..."
-        autocomplete="off"
-        class="w-full bg-appBg border border-borderSubtle rounded-lg px-4 py-3 text-sm text-white focus:outline-none focus:border-hn mb-6 font-mono"
-      />
-
-      <div class="flex justify-end gap-3">
-        <button
-          id="clearKeyBtn"
-          type="button"
-          class="px-4 py-2 rounded-lg text-sm text-textMuted hover:text-white transition-colors"
-        >
-          Clear
-        </button>
-        <button
-          id="saveKeyBtn"
-          type="button"
-          class="px-4 py-2 rounded-lg text-sm bg-textMain text-black hover:bg-white font-medium transition-colors"
-        >
-          Save
-        </button>
-      </div>
-    </dialog>
-
     <script>
-      const FEED_PAGE_SIZE = 15;
       const LS_READ_STATS = "readStats";
       const LS_READ_STORIES = "readStories";
-      const LS_TOP_IDS = "hn_top_ids";
-      const LS_TOP_TIME = "hn_top_time";
-      const LS_NEW_IDS = "hn_new_ids";
-      const LS_NEW_TIME = "hn_new_time";
-      const LS_FEED_KIND = "hn_digest_feed_kind";
-      const LS_PREF_LANG = "preferredLang";
-      const LS_OPENAI_KEY = "openai_api_key";
 
       const SUPPORTED_LANGUAGES = [
         { code: "en", name: "ENG" },
         { code: "tr", name: "TR" },
-        { code: "es", name: "ES" },
       ];
 
       function escapeHtml(s) {
@@ -1184,44 +1062,14 @@
         return escapeHtml(s.replace(/<[^>]+>/g, ""));
       }
 
-      let currentLang = localStorage.getItem(LS_PREF_LANG) || "en";
+      /** /<lang>, /<lang>/<date>, /<lang>/<date>/<slug> */
+      const ROUTE_RE = /^\/(en|tr)(?:\/(\d{4}-\d{2}-\d{2})(?:\/([a-z0-9-]+))?)?\/?$/;
+      const initialRoute = location.pathname.match(ROUTE_RE);
+      let currentLang = initialRoute ? initialRoute[1] : "en";
       let activeCardId = null;
       let currentActiveStory = null;
-      let currentPage = 1;
       let hideReadActive = false;
-      let feedKind =
-        localStorage.getItem(LS_FEED_KIND) === "new" ? "new" : "top";
-
-      const settingsModal = document.getElementById("settingsModal");
-      const openSettingsBtn = document.getElementById("openSettingsBtn");
-      const closeSettingsBtn = document.getElementById("closeSettingsBtn");
-      const saveKeyBtn = document.getElementById("saveKeyBtn");
-      const clearKeyBtn = document.getElementById("clearKeyBtn");
-      const apiKeyInput = document.getElementById("apiKeyInput");
-
-      openSettingsBtn.addEventListener("click", () => {
-        apiKeyInput.value = localStorage.getItem(LS_OPENAI_KEY) || "";
-        settingsModal.showModal();
-      });
-      closeSettingsBtn.addEventListener("click", () => settingsModal.close());
-
-      saveKeyBtn.addEventListener("click", () => {
-        if (apiKeyInput.value.trim()) {
-          localStorage.setItem(LS_OPENAI_KEY, apiKeyInput.value.trim());
-          settingsModal.close();
-          if (currentActiveStory && activeCardId) {
-            handleCardClick(
-              currentActiveStory,
-              document.getElementById(`card-${activeCardId}`)
-            );
-          }
-        }
-      });
-
-      clearKeyBtn.addEventListener("click", () => {
-        localStorage.removeItem(LS_OPENAI_KEY);
-        apiKeyInput.value = "";
-      });
+      let dailyDigestDate = "";
 
       const langSelect = document.getElementById("langSelect");
       SUPPORTED_LANGUAGES.forEach((lang) => {
@@ -1234,16 +1082,16 @@
 
       langSelect.addEventListener("change", (e) => {
         currentLang = e.target.value;
-        localStorage.setItem(LS_PREF_LANG, currentLang);
         if (currentActiveStory && activeCardId) {
           const currentCard = document.getElementById(`card-${activeCardId}`);
           handleCardClick(currentActiveStory, currentCard);
+        } else {
+          syncUrl();
         }
       });
 
       const feedList = document.getElementById("feedList");
       const statusDot = document.getElementById("statusDot");
-      const loadMoreBtn = document.getElementById("loadMoreBtn");
       const readerPane = document.getElementById("readerPane");
       const feedPane = document.getElementById("feedPane");
       const emptyState = document.getElementById("emptyState");
@@ -1284,73 +1132,6 @@
       const mobileBackBtn = document.getElementById("mobileBackBtn");
       const statusTextEl = document.getElementById("statusText");
       const activityGraph = document.getElementById("activityGraph");
-      const feedKindTop = document.getElementById("feedKindTop");
-      const feedKindNew = document.getElementById("feedKindNew");
-
-      function getFeedStorageKeys() {
-        return feedKind === "new"
-          ? { ids: LS_NEW_IDS, time: LS_NEW_TIME }
-          : { ids: LS_TOP_IDS, time: LS_TOP_TIME };
-      }
-
-      function getFeedListUrl() {
-        return feedKind === "new"
-          ? "https://hacker-news.firebaseio.com/v0/newstories.json"
-          : "https://hacker-news.firebaseio.com/v0/topstories.json";
-      }
-
-      function syncFeedKindButtons() {
-        feedKindTop.classList.toggle("feed-kind-active", feedKind === "top");
-        feedKindNew.classList.toggle("feed-kind-active", feedKind === "new");
-        feedKindTop.setAttribute(
-          "aria-pressed",
-          feedKind === "top" ? "true" : "false"
-        );
-        feedKindNew.setAttribute(
-          "aria-pressed",
-          feedKind === "new" ? "true" : "false"
-        );
-      }
-
-      function resetReaderForFeedSwitch() {
-        activeCardId = null;
-        currentActiveStory = null;
-        feedList.querySelectorAll(".story-card.is-active").forEach((el) => {
-          el.classList.remove("is-active");
-        });
-        emptyState.classList.remove("hidden");
-        readerWorkspace.classList.add("hidden");
-        readerWorkspace.classList.remove("flex");
-        readerContent.classList.add("hidden");
-        readerContent.classList.remove("flex", "flex-col");
-        closeCommentsPanel(false);
-        closeSourcePanel(false);
-        setReaderViewToggleVisible(false);
-        readerCommentsToggleWrap.classList.add("hidden");
-        readerTitleSourceLink.removeAttribute("href");
-        readerTitleSourceLink.textContent = "";
-        readerTitleSourceLink.classList.add("hidden");
-      }
-
-      function setFeedKind(kind) {
-        const next = kind === "new" ? "new" : "top";
-        if (next === feedKind) return;
-        feedKind = next;
-        localStorage.setItem(LS_FEED_KIND, feedKind);
-        currentPage = 1;
-        syncFeedKindButtons();
-        resetReaderForFeedSwitch();
-        if (window.innerWidth < 768) {
-          feedPane.classList.remove("hidden");
-          readerPane.classList.add("hidden");
-          readerPane.classList.remove("flex");
-        }
-        loadStoriesClient(1);
-      }
-
-      feedKindTop.addEventListener("click", () => setFeedKind("top"));
-      feedKindNew.addEventListener("click", () => setFeedKind("new"));
-      syncFeedKindButtons();
 
       const SPINNER_SVG = `<svg class="animate-spin h-3.5 w-3.5 text-hn shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true"><circle class="opacity-20" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-80" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>`;
 
@@ -1372,17 +1153,6 @@
             <div class="ui-skeleton h-3 w-28 rounded-md"></div>
           </div>`;
         return el;
-      }
-
-      function readerSummarySkeletonHTML() {
-        return `<div class="w-full space-y-3 animate-fade-in opacity-0">
-          <div class="ui-skeleton h-4 rounded-md" style="width:88%"></div>
-          <div class="ui-skeleton h-4 rounded-md w-full"></div>
-          <div class="ui-skeleton h-4 rounded-md" style="width:94%"></div>
-          <div class="ui-skeleton h-4 rounded-md" style="width:72%"></div>
-          <div class="ui-skeleton h-4 rounded-md w-full"></div>
-          <div class="ui-skeleton h-4 rounded-md" style="width:56%"></div>
-        </div>`;
       }
 
       function commentsThreadLoadingHTML() {
@@ -1475,16 +1245,165 @@
 
         daysArr.forEach((dateStr) => {
           const count = stats[dateStr] || 0;
-          let colorClass = "bg-surfaceHover";
+          let colorClass = "bg-surface";
           if (count > 0 && count <= 2) colorClass = "bg-hn/30";
           else if (count > 2 && count <= 5) colorClass = "bg-hn/60";
           else if (count > 5) colorClass = "bg-hn";
 
-          const cell = document.createElement("div");
+          const hasDigest = digestDates.has(dateStr);
+          // Days with a digest open that day's top 10; unread ones are a shade lighter.
+          if (hasDigest && count === 0) colorClass = "bg-surfaceHover";
+          const cell = document.createElement(hasDigest ? "button" : "div");
           cell.className = `w-[9px] h-[9px] rounded-[2px] transition-colors duration-300 ${colorClass}`;
           cell.title = `${count} posts read on ${dateStr}`;
+          if (hasDigest) {
+            const selected = dateStr === dailyDigestDate;
+            cell.type = "button";
+            cell.className += " cursor-pointer";
+            cell.title += selected ? " · showing this digest" : " · open this day's digest";
+            cell.setAttribute("aria-label", `Open digest for ${dateStr}`);
+            if (selected) cell.setAttribute("aria-current", "date");
+            cell.addEventListener("click", () => selectDigestDate(dateStr));
+          }
           activityGraph.appendChild(cell);
         });
+      }
+
+      /** Dates that have a digest, from /api/digests (newest first). */
+      let digestDateList = [];
+      let digestDates = new Set();
+      let latestDigestDate = "";
+
+      async function loadDigestDates() {
+        try {
+          const res = await fetch("/api/digests");
+          if (!res.ok) return;
+          const dates = await res.json();
+          if (!Array.isArray(dates)) return;
+          digestDateList = dates;
+          digestDates = new Set(dates);
+          latestDigestDate = dates[0] || "";
+          renderActivityGraph();
+          renderDayNav();
+        } catch {
+          /* the calendar and day nav just stay inactive */
+        }
+      }
+
+      const dayNav = document.getElementById("dayNav");
+      const dayNavPrev = document.getElementById("dayNavPrev");
+      const dayNavNext = document.getElementById("dayNavNext");
+      const dayNavLabel = document.getElementById("dayNavLabel");
+
+      /** Shows the active day above the list; Prev goes to the older digest, Next to the newer one. */
+      function renderDayNav() {
+        const i = digestDateList.indexOf(dailyDigestDate);
+        if (!dailyDigestDate || i === -1) {
+          dayNav.classList.add("hidden");
+          dayNav.classList.remove("flex");
+          return;
+        }
+        dayNavLabel.textContent = formatDay(dailyDigestDate);
+        dayNavLabel.title = dailyDigestDate;
+        dayNavPrev.disabled = i === digestDateList.length - 1;
+        dayNavNext.disabled = i === 0;
+        dayNav.classList.remove("hidden");
+        dayNav.classList.add("flex");
+      }
+
+      dayNavPrev.addEventListener("click", () => {
+        const older = digestDateList[digestDateList.indexOf(dailyDigestDate) + 1];
+        if (older) selectDigestDate(older);
+      });
+      dayNavNext.addEventListener("click", () => {
+        const newer = digestDateList[digestDateList.indexOf(dailyDigestDate) - 1];
+        if (newer) selectDigestDate(newer);
+      });
+
+      function resetReader() {
+        activeCardId = null;
+        currentActiveStory = null;
+        emptyState.classList.remove("hidden");
+        readerWorkspace.classList.add("hidden");
+        readerWorkspace.classList.remove("flex");
+        readerContent.classList.add("hidden");
+        readerContent.classList.remove("flex", "flex-col");
+        closeCommentsPanel(false);
+        closeSourcePanel(false);
+      }
+
+      /** A past day the user navigated to; the latest digest stays on /<lang>. */
+      let pinnedDate = "";
+      /** True while the page follows the URL (first load, back/forward), so it isn't pushed again. */
+      let routing = false;
+
+      function formatDay(date) {
+        const [y, m, d] = date.split("-").map(Number);
+        return new Date(y, m - 1, d).toLocaleDateString("en-US", {
+          weekday: "short",
+          month: "short",
+          day: "numeric",
+        });
+      }
+
+      /**
+       * Mirrors the view in the URL and title: /<lang>[/<date>[/<slug>]].
+       * A story URL always carries its date so it still resolves after the day rolls over.
+       */
+      function syncUrl() {
+        const story = activeCardId ? currentActiveStory : null;
+        const date = story ? dailyDigestDate : pinnedDate;
+        let path = `/${currentLang}`;
+        if (date) path += `/${date}`;
+        if (story?.slug) path += `/${story.slug}`;
+        if (path !== location.pathname || location.search) {
+          history[routing ? "replaceState" : "pushState"](null, "", path);
+        }
+        // The UI chrome is English; only the summary text is in the selected language.
+        readerBody.lang = currentLang;
+        document.title = story
+          ? `${story.title} · HN Digest`
+          : dailyDigestDate
+            ? `HN Digest · ${formatDay(dailyDigestDate)}`
+            : "HN Digest";
+      }
+
+      /** Shows whatever the current URL points at; used on load and on back/forward. */
+      async function routeFromLocation() {
+        const match = location.pathname.match(ROUTE_RE);
+        if (!match) return;
+        const [, lang, date = "", slug = ""] = match;
+        routing = true;
+        try {
+          if (lang !== currentLang) {
+            currentLang = lang;
+            langSelect.value = lang;
+          }
+          const needsLoad = !dailyDigestDate || (date ? date !== dailyDigestDate : pinnedDate !== "");
+          if (needsLoad) {
+            resetReader();
+            await loadStoriesClient(date);
+          }
+          const card = slug ? feedList.querySelector(`.story-card[data-slug="${slug}"]`) : null;
+          if (card) {
+            card.click();
+          } else {
+            if (activeCardId) resetReader();
+            syncUrl();
+          }
+        } finally {
+          routing = false;
+        }
+      }
+
+      window.addEventListener("popstate", () => {
+        routeFromLocation();
+      });
+
+      function selectDigestDate(date) {
+        if (date === dailyDigestDate) return;
+        resetReader();
+        loadStoriesClient(date);
       }
 
       function getReadStories() {
@@ -1615,7 +1534,9 @@
           const res = await fetch(
             `/api/embed-check?url=${encodeURIComponent(
               href
-            )}&parent=${encodeURIComponent(window.location.origin)}`
+            )}&date=${encodeURIComponent(dailyDigestDate)}&parent=${encodeURIComponent(
+              window.location.origin
+            )}`
           );
           const data = await res.json().catch(() => ({}));
           if (typeof data.embeddable === "boolean") {
@@ -1738,8 +1659,6 @@
       }
 
       document.addEventListener("keydown", (e) => {
-        if (settingsModal.open) return;
-
         if (keyboardInFormField()) return;
 
         if (e.key === "Escape") {
@@ -1913,7 +1832,6 @@
         const block = document.createElement("div");
         block.className = "hn-comment-block";
         block.dataset.depth = String(depth);
-        block.dataset.rail = String(depth % 5);
 
         const article = document.createElement("article");
         article.className = "hn-comment-card";
@@ -1938,14 +1856,6 @@
           when.className = "hn-comment-time";
           when.textContent = timeAgo(item.time);
           meta.appendChild(when);
-        }
-
-        if (depth > 0) {
-          const depthBadge = document.createElement("span");
-          depthBadge.className = "hn-comment-depth shrink-0 ml-auto";
-          depthBadge.textContent = `L${depth}`;
-          depthBadge.title = `Reply depth ${depth}`;
-          meta.appendChild(depthBadge);
         }
 
         const body = document.createElement("div");
@@ -2104,67 +2014,46 @@
         feedPane.classList.remove("hidden");
         readerPane.classList.add("hidden");
         readerPane.classList.remove("flex");
+        // Back on the list, so the URL drops the story (replaced, not a new history entry).
+        activeCardId = null;
+        currentActiveStory = null;
+        feedList.querySelectorAll(".story-card.is-active").forEach((el) => el.classList.remove("is-active"));
+        routing = true;
+        syncUrl();
+        routing = false;
       });
 
-      loadMoreBtn.addEventListener("click", () => {
-        currentPage++;
-        loadStoriesClient(currentPage);
-      });
-
-      async function loadStoriesClient(page = 1) {
-        let loadMoreEnabled = false;
-        let loadMoreLabel = "Load More";
-
-        loadMoreBtn.disabled = true;
-        loadMoreBtn.innerHTML = `${SPINNER_SVG}<span>Loading…</span>`;
-
-        if (page > 1) {
-          for (let i = 0; i < 3; i++) {
-            feedList.appendChild(createFeedSkeletonCard());
-          }
-        } else {
-          feedList.innerHTML = "";
-          for (let i = 0; i < 8; i++) {
-            feedList.appendChild(createFeedSkeletonCard());
-          }
-          statusDot.classList.remove("bg-red-500");
-          statusDot.classList.add("bg-hn", "animate-pulse");
-          statusTextEl.textContent = "Loading feed";
+      async function loadStoriesClient(date = "") {
+        feedList.innerHTML = "";
+        for (let i = 0; i < 8; i++) {
+          feedList.appendChild(createFeedSkeletonCard());
         }
+        statusDot.classList.remove("bg-red-500");
+        statusDot.classList.add("bg-hn", "animate-pulse");
+        statusTextEl.textContent = "Loading";
 
         try {
-          const { ids: idsKey, time: timeKey } = getFeedStorageKeys();
-          let topIds = safeJsonParse(localStorage.getItem(idsKey) || "[]", []);
-          if (!Array.isArray(topIds)) topIds = [];
-          let lastFetch = parseInt(localStorage.getItem(timeKey) || "0", 10);
-
-          if (Date.now() - lastFetch > 15 * 60 * 1000 || topIds.length === 0) {
-            const res = await fetch(getFeedListUrl());
-            topIds = await res.json();
-            localStorage.setItem(idsKey, JSON.stringify(topIds));
-            localStorage.setItem(timeKey, Date.now().toString());
-          }
-
-          const pageIds = topIds.slice(
-            (page - 1) * FEED_PAGE_SIZE,
-            page * FEED_PAGE_SIZE
+          const res = await fetch(
+            date ? `/api/digest?date=${encodeURIComponent(date)}` : "/api/digest"
           );
-
-          const storyPromises = pageIds.map((id) =>
-            fetch(`https://hacker-news.firebaseio.com/v0/item/${id}.json`).then(
-              (r) => r.json()
-            )
-          );
-          const stories = await Promise.all(storyPromises);
-
-          if (page === 1) {
-            feedList.innerHTML = "";
-          } else {
-            feedList
-              .querySelectorAll("[data-feed-skeleton]")
-              .forEach((el) => el.remove());
+          if (res.status === 404) {
+            feedList.innerHTML = date
+              ? '<p class="text-sm text-textMuted px-2 py-10 text-center">There’s no digest for this day.</p>'
+              : '<p class="text-sm text-textMuted px-2 py-10 text-center">Today’s digest isn’t ready yet. Check back later.</p>';
+            statusDot.classList.remove("animate-pulse");
+            statusTextEl.textContent = "Daily";
+            return;
           }
+          if (!res.ok) throw new Error("Digest unavailable");
+          const digest = await res.json();
+          dailyDigestDate = digest.date || "";
+          const stories = digest.stories || [];
+          renderActivityGraph();
+          renderDayNav();
+          pinnedDate = date && date !== latestDigestDate ? date : "";
+          syncUrl();
 
+          feedList.innerHTML = "";
           const frag = document.createDocumentFragment();
           stories.forEach((story, i) => {
             if (!story) return;
@@ -2172,6 +2061,7 @@
             const card = document.createElement("div");
             card.style.animationDelay = `${i * 20}ms`;
             card.id = `card-${story.id}`;
+            card.dataset.slug = story.slug || "";
 
             const readClass = isRead(story.id) ? "is-read" : "";
             const activeClass = activeCardId === story.id ? "is-active" : "";
@@ -2239,33 +2129,14 @@
           });
           feedList.appendChild(frag);
 
-          const hasMore = page * FEED_PAGE_SIZE < topIds.length;
-          loadMoreEnabled = hasMore;
-          loadMoreLabel = hasMore ? "Load More" : "All stories loaded";
-
-          if (page === 1) {
-            statusDot.classList.remove("animate-pulse");
-            statusTextEl.textContent = "Live";
-          }
+          statusDot.classList.remove("animate-pulse");
+          statusTextEl.textContent = dailyDigestDate || "Daily";
         } catch (err) {
-          if (page === 1) {
-            statusDot.classList.remove("animate-pulse");
-            statusDot.classList.replace("bg-hn", "bg-red-500");
-            statusTextEl.textContent = "Error";
-            loadMoreEnabled = false;
-            loadMoreLabel = "Load More";
-            feedList.innerHTML =
-              '<p class="text-sm text-red-400/90 px-2 py-10 text-center">Couldn’t load stories. Check your connection and try again.</p>';
-          } else {
-            loadMoreEnabled = true;
-            loadMoreLabel = "Load More";
-            feedList
-              .querySelectorAll("[data-feed-skeleton]")
-              .forEach((el) => el.remove());
-          }
-        } finally {
-          loadMoreBtn.textContent = loadMoreLabel;
-          loadMoreBtn.disabled = !loadMoreEnabled;
+          statusDot.classList.remove("animate-pulse");
+          statusDot.classList.replace("bg-hn", "bg-red-500");
+          statusTextEl.textContent = "Error";
+          feedList.innerHTML =
+            '<p class="text-sm text-red-400/90 px-2 py-10 text-center">Couldn’t load the digest. Check your connection and try again.</p>';
         }
       }
 
@@ -2280,6 +2151,7 @@
         }
         activeCardId = story.id;
         currentActiveStory = story;
+        syncUrl();
 
         cardElement.classList.add("is-active");
 
@@ -2347,76 +2219,25 @@
 
         readerContent.scrollTop = 0;
 
-        const localCacheKey = `summary_${story.id}_${currentLang}`;
-        const browserCachedSummary = localStorage.getItem(localCacheKey);
-
-        if (browserCachedSummary) {
-          readerStatus.innerHTML = `<span class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-hn shrink-0"></span><span class="uppercase tracking-wider">Loaded from cache${summaryStatusLangSuffix()}</span></span>`;
-          readerBody.innerHTML = markdownToSafeHtml(browserCachedSummary);
-          applyBlankTargets(readerBody);
-          void readerBody.offsetWidth;
-          readerBody.classList.add("animate-reader-in");
-          applyReadState(story, cardElement);
+        const summary = story.summaries?.[currentLang];
+        if (!summary) {
+          readerBody.innerHTML = "";
+          readerStatus.innerHTML = `<span class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0"></span><span class="uppercase tracking-wider text-[10px] leading-snug">No summary for this story</span></span>`;
           return;
         }
-
-        readerBody.classList.add("opacity-50");
-        readerBody.innerHTML = readerSummarySkeletonHTML();
-        readerStatus.innerHTML = `<span class="flex items-center gap-2">${SPINNER_SVG}<span class="uppercase tracking-wider">Generating summary</span></span>`;
-
-        try {
-          const apiKey = (localStorage.getItem(LS_OPENAI_KEY) || "").trim();
-          const headers = {};
-          if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
-
-          const res = await fetch(
-            `/api/summarize?id=${encodeURIComponent(
-              story.id
-            )}&lang=${encodeURIComponent(currentLang)}`,
-            { headers }
-          );
-          const data = await res.json().catch(() => ({}));
-          if (res.status === 401) {
-            openSettingsBtn.click();
-            readerBody.classList.remove("opacity-50");
-            readerBody.innerHTML = "";
-            readerStatus.innerHTML = `<span class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0"></span><span class="uppercase tracking-wider text-[10px] leading-snug">Add API key in settings</span></span>`;
-            return;
-          }
-          if (!res.ok) {
-            throw new Error(data.error || "Summary request failed");
-          }
-          const summary = data.summary;
-          if (!summary) throw new Error("Empty summary");
-
-          const statusLabel = data.cached
-            ? `Server cache${summaryStatusLangSuffix()}`
-            : `Generated${summaryStatusLangSuffix()}`;
-          const dotClass = data.cached ? "bg-hn" : "bg-green-500";
-          readerStatus.innerHTML = `<span class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full ${dotClass} shrink-0"></span><span class="uppercase tracking-wider">${statusLabel}</span></span>`;
-          readerBody.classList.remove("opacity-50");
-          readerBody.innerHTML = markdownToSafeHtml(summary);
-          applyBlankTargets(readerBody);
-          void readerBody.offsetWidth;
-          readerBody.classList.add("animate-reader-in");
-
-          try {
-            localStorage.setItem(localCacheKey, summary);
-          } catch (e) {
-            console.warn("Local storage full, skipping browser cache.");
-          }
-
-          applyReadState(story, cardElement);
-        } catch (err) {
-          console.error(err);
-          readerBody.classList.remove("opacity-50");
-          readerBody.innerHTML = "";
-          readerStatus.innerHTML = `<span class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0"></span><span class="uppercase tracking-wider text-[10px] leading-snug">Summary failed — check API key</span></span>`;
-        }
+        readerStatus.innerHTML = `<span class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-hn shrink-0"></span><span class="uppercase tracking-wider">Daily digest ${escapeHtml(dailyDigestDate)}${summaryStatusLangSuffix()}</span></span>`;
+        readerBody.innerHTML = markdownToSafeHtml(summary);
+        applyBlankTargets(readerBody);
+        void readerBody.offsetWidth;
+        readerBody.classList.add("animate-reader-in");
+        applyReadState(story, cardElement);
       }
 
       renderActivityGraph();
-      loadStoriesClient();
+      // Old ?date=…&story=… links are redirected by the Worker; anything else lands on /<lang>.
+      if (!initialRoute) history.replaceState(null, "", `/${currentLang}`);
+      routeFromLocation();
+      loadDigestDates();
     </script>
   </body>
 </html>

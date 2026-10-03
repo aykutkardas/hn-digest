@@ -1,20 +1,13 @@
-const LIST_CACHE_TTL = 15 * 60 * 1000;
-const SUMMARY_CACHE_MAX = 400;
+const EMBED_CHECK_CACHE_TTL = 15 * 60 * 1000;
 const EMBED_CHECK_CACHE_MAX = 600;
-const PAGE_FETCH_TIMEOUT_MS = 8000;
 
-const listIdCaches = {
-  top: { time: 0, ids: [] },
-  new: { time: 0, ids: [] },
-};
-const summaryCache = new Map();
 /** @type {Map<string, { t: number, result: { embeddable: boolean, reason: string | null } }>} */
 const embedCheckCache = new Map();
 
 function corsHeaders() {
   return {
     "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Headers": "Authorization, Content-Type, X-OpenAI-Key",
+    "Access-Control-Allow-Headers": "Content-Type",
     "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
   };
 }
@@ -24,17 +17,6 @@ function json(data, status = 200) {
     status,
     headers: { "Content-Type": "application/json", ...corsHeaders() },
   });
-}
-
-function openAiKeyFromRequest(request) {
-  const authHeader = (request.headers.get("authorization") || "").trim();
-  let m = authHeader.match(/^Bearer\s+([\s\S]+)$/i);
-  let token = (m?.[1] || "").trim();
-  while (/^bearer\s+/i.test(token)) {
-    token = token.replace(/^bearer\s+/i, "").trim();
-  }
-  if (token) return token;
-  return (request.headers.get("x-openai-key") || "").trim();
 }
 
 /** Merge duplicate Content-Security-Policy header values from the response. */
@@ -115,7 +97,21 @@ function embeddableFromHeaders(headers, parentOrigin) {
   return { embeddable: true, reason: null };
 }
 
-async function handleEmbedCheck(url) {
+/** True when `href` is the link of a story in that day's digest. */
+async function isDigestStoryUrl(env, date, href) {
+  if (!env.DIGEST || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
+  const body = await env.DIGEST.get(`digest:${date}`);
+  if (!body) return false;
+  return (JSON.parse(body).stories || []).some((story) => {
+    try {
+      return story.url && new URL(story.url).href === href;
+    } catch {
+      return false;
+    }
+  });
+}
+
+async function handleEmbedCheck(url, env) {
   const target = url.searchParams.get("url");
   const parentOrigin = (url.searchParams.get("parent") || "").trim();
   if (!target || !isPublicHttpUrlForFetch(target)) {
@@ -129,9 +125,14 @@ async function handleEmbedCheck(url) {
     return json({ embeddable: false, error: "invalid_url" }, 400);
   }
 
+  // Only links from the digest are checked, so this can't be used to probe arbitrary URLs.
+  if (!(await isDigestStoryUrl(env, url.searchParams.get("date") || "", canonical))) {
+    return json({ embeddable: false, error: "unknown_url" }, 403);
+  }
+
   const cacheKey = `${canonical}\0${parentOrigin}`;
   const hit = embedCheckCache.get(cacheKey);
-  if (hit && Date.now() - hit.t < LIST_CACHE_TTL) {
+  if (hit && Date.now() - hit.t < EMBED_CHECK_CACHE_TTL) {
     return json({ ...hit.result, cached: true });
   }
 
@@ -200,14 +201,6 @@ function isPublicHttpUrlForFetch(urlString) {
   }
 }
 
-function summaryCacheSet(key, value) {
-  if (summaryCache.size >= SUMMARY_CACHE_MAX && !summaryCache.has(key)) {
-    const first = summaryCache.keys().next().value;
-    summaryCache.delete(first);
-  }
-  summaryCache.set(key, value);
-}
-
 function embedCheckCacheSet(key, entry) {
   if (embedCheckCache.size >= EMBED_CHECK_CACHE_MAX && !embedCheckCache.has(key)) {
     const first = embedCheckCache.keys().next().value;
@@ -216,163 +209,48 @@ function embedCheckCacheSet(key, entry) {
   embedCheckCache.set(key, entry);
 }
 
-async function handleStories(url) {
-  try {
-    const feed = url.searchParams.get("feed") === "new" ? "new" : "top";
-    const hnListUrl =
-      feed === "new"
-        ? "https://hacker-news.firebaseio.com/v0/newstories.json"
-        : "https://hacker-news.firebaseio.com/v0/topstories.json";
-
-    const page = parseInt(url.searchParams.get("page") || "1", 10) || 1;
-    const limit = 15;
-    const startIndex = (page - 1) * limit;
-    const endIndex = page * limit;
-
-    let cache = listIdCaches[feed];
-    let topIds = cache.ids;
-    if (
-      Date.now() - cache.time > LIST_CACHE_TTL ||
-      topIds.length === 0
-    ) {
-      const hnRes = await fetch(hnListUrl);
-      topIds = await hnRes.json();
-      if (!Array.isArray(topIds)) {
-        throw new Error("Invalid HN list response");
-      }
-      cache = { time: Date.now(), ids: topIds };
-      listIdCaches[feed] = cache;
-    }
-
-    const pageIds = topIds.slice(startIndex, endIndex);
-    const storyPromises = pageIds.map((id) =>
-      fetch(`https://hacker-news.firebaseio.com/v0/item/${id}.json`).then(
-        (r) => r.json()
-      )
-    );
-    const stories = await Promise.all(storyPromises);
-
-    return json({
-      stories,
-      hasMore: endIndex < topIds.length,
-      feed,
-    });
-  } catch {
-    return json({ error: "Failed to fetch stories" }, 500);
+/**
+ * Daily digest written to KV by scripts/daily-digest.mjs: `digest:latest`, `digest:<date>`,
+ * and `digest:index` (the list of available dates, newest first).
+ */
+async function handleDigest(url, env, key) {
+  if (!env.DIGEST) return json({ error: "Digest storage is not configured." }, 503);
+  if (!key) {
+    const date = url.searchParams.get("date") || "";
+    key = /^\d{4}-\d{2}-\d{2}$/.test(date) ? `digest:${date}` : "digest:latest";
   }
+  const body = await env.DIGEST.get(key);
+  if (!body) return json({ error: "No digest yet." }, 404);
+  return new Response(body, {
+    headers: {
+      "Content-Type": "application/json",
+      "Cache-Control": "public, max-age=600",
+      ...corsHeaders(),
+    },
+  });
 }
 
-async function handleSummarize(request, url, env) {
-  const storyId = url.searchParams.get("id");
-  const lang = (url.searchParams.get("lang") || "en").slice(0, 12);
+/** App pages: /en, /tr, /<lang>/<date>, /<lang>/<date>/<slug>. All are served by index.html. */
+const APP_ROUTE = /^\/(en|tr)(?:\/\d{4}-\d{2}-\d{2}(?:\/[a-z0-9-]+)?)?$/;
 
-  if (!storyId || !/^\d+$/.test(storyId)) {
-    return json({ error: "Missing or invalid story ID" }, 400);
+const DEFAULT_LANG = "en";
+
+/**
+ * "/" goes to the English digest. Links from before the path-based URLs
+ * (?date=…&story=<id>) are permanently redirected to their new address.
+ */
+async function handleRoot(url, env) {
+  const lang = DEFAULT_LANG;
+  const date = url.searchParams.get("date") || "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    let target = `/${lang}/${date}`;
+    const storyId = Number(url.searchParams.get("story"));
+    const body = storyId && env.DIGEST ? await env.DIGEST.get(`digest:${date}`) : null;
+    const story = body ? (JSON.parse(body).stories || []).find((s) => s.id === storyId) : null;
+    if (story?.slug) target += `/${story.slug}`;
+    return Response.redirect(new URL(target, url), 301);
   }
-
-  const cacheKey = `${storyId}_${lang}`;
-  if (summaryCache.has(cacheKey)) {
-    return json({
-      summary: summaryCache.get(cacheKey),
-      cached: true,
-    });
-  }
-
-  const apiKey =
-    openAiKeyFromRequest(request) || (env.OPENAI_API_KEY || "").trim();
-  if (!apiKey) {
-    return json(
-      {
-        error:
-          "Missing OpenAI API key. Add your key in settings or set OPENAI_API_KEY as a Worker secret.",
-      },
-      401
-    );
-  }
-
-  try {
-    const storyRes = await fetch(
-      `https://hacker-news.firebaseio.com/v0/item/${storyId}.json`
-    );
-    const story = await storyRes.json();
-
-    let contentToSummarize = story.title;
-
-    if (story.url) {
-      if (isPublicHttpUrlForFetch(story.url)) {
-        const controller = new AbortController();
-        const t = setTimeout(() => controller.abort(), PAGE_FETCH_TIMEOUT_MS);
-        try {
-          const pageRes = await fetch(story.url, {
-            signal: controller.signal,
-            redirect: "follow",
-          });
-          const html = await pageRes.text();
-
-          const cleanText = html
-            .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
-            .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, "")
-            .replace(/<(?!img|iframe|\/iframe)[^>]+>/gi, " ")
-            .replace(/\s+/g, " ")
-            .substring(0, 15000);
-
-          contentToSummarize = `Title: ${story.title}\nContent: ${cleanText}`;
-        } catch {
-          contentToSummarize = `Title: ${story.title}\n(Could not fetch page content, summarize based on title).`;
-        } finally {
-          clearTimeout(t);
-        }
-      } else {
-        contentToSummarize = `Title: ${story.title}\n(URL not fetched for security; summarize from title and context).`;
-      }
-    } else if (story.text) {
-      contentToSummarize = `Title: ${story.title}\nContent: ${story.text}`;
-    }
-
-    const systemPrompt = `You are an expert technical summarizer writing for readers who want depth, not a headline recap.
-
-Output requirements:
-- Write in the language for ISO code '${lang}' for the entire answer (headings, bullets, and prose).
-- Aim for substantial coverage when the source allows: multiple sections, rich bullets, and concrete detail (names, numbers, versions, claims, methodology) pulled from the text—not vague restatements.
-- Use clear Markdown: **bold** for emphasis, bullet lists where helpful, short subheadings (##) to organize longer answers.
-- If the source is long or dense, target roughly 500–900 words of useful synthesis unless the material is genuinely thin; never compress into a single short paragraph when more detail is justified.
-- If the source is only a title or very sparse, say what is unknown, give careful educated context, and clearly label speculation.
-- When the source includes important <img> or <iframe> tags (e.g. charts, embeds), preserve those tags in your summary so they still render.`;
-
-    const userPrompt = `Summarize the following for a technical audience. Be thorough: explain what happens, why it matters, and any notable details or tradeoffs mentioned.\n\n${contentToSummarize}`;
-
-    const aiRes = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt },
-        ],
-        temperature: 0.45,
-        max_tokens: 4096,
-      }),
-    });
-
-    const aiData = await aiRes.json();
-    if (aiData.error) {
-      throw new Error(aiData.error.message || "OpenAI error");
-    }
-
-    const summary = aiData.choices[0].message.content;
-    summaryCacheSet(cacheKey, summary);
-
-    return json({ summary, cached: false });
-  } catch (error) {
-    console.error("summarize:", error);
-    const message =
-      error instanceof Error ? error.message : "Failed to generate summary.";
-    return json({ error: message }, 500);
-  }
+  return new Response(null, { status: 302, headers: { Location: `/${lang}` } });
 }
 
 export default {
@@ -384,14 +262,22 @@ export default {
     const url = new URL(request.url);
     const path = url.pathname.replace(/\/$/, "") || "/";
 
-    if (path === "/api/stories") {
-      return handleStories(url);
+    if (path === "/") {
+      return handleRoot(url, env);
     }
-    if (path === "/api/summarize") {
-      return handleSummarize(request, url, env);
+    if (APP_ROUTE.test(path)) {
+      // Asking the asset server for "/" returns index.html without its own redirects.
+      return env.ASSETS.fetch(new Request(new URL("/", url), request));
+    }
+
+    if (path === "/api/digest") {
+      return handleDigest(url, env);
+    }
+    if (path === "/api/digests") {
+      return handleDigest(url, env, "digest:index");
     }
     if (path === "/api/embed-check") {
-      return handleEmbedCheck(url);
+      return handleEmbedCheck(url, env);
     }
 
     return env.ASSETS.fetch(request);
