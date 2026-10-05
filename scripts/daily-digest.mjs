@@ -257,12 +257,26 @@ function toMarkdown(digest) {
   return lines.join("\n");
 }
 
+/**
+ * Wrangler's OAuth token expires overnight; the first call after that refreshes it but can
+ * still be rejected with a 401, so a failed upload gets a few more tries.
+ */
 function uploadToKv(key, file) {
   const wrangler = join(ROOT, "node_modules", "wrangler", "bin", "wrangler.js");
-  execFileSync(process.execPath, [wrangler, "kv", "key", "put", key, "--path", file, "--binding", "DIGEST", "--remote"], {
-    cwd: ROOT,
-    stdio: ["ignore", "ignore", "inherit"],
-  });
+  const args = [wrangler, "kv", "key", "put", key, "--path", file, "--binding", "DIGEST", "--remote"];
+  for (let attempt = 1; ; attempt++) {
+    try {
+      execFileSync(process.execPath, args, { cwd: ROOT, stdio: ["ignore", "ignore", "pipe"] });
+      return;
+    } catch (error) {
+      if (attempt >= 3) {
+        process.stderr.write(error.stderr || "");
+        throw error;
+      }
+      log(`Upload of ${key} failed (attempt ${attempt}), retrying`);
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 3000);
+    }
+  }
 }
 
 /** Dates that have a local digest file, newest first; published as digest:index. */
